@@ -12,7 +12,13 @@ from multiprocessing import Pool
 import time
 import json
 
+# Global variables
 n = 4
+tol = 1e-8
+points_len = 100
+points_width = 100
+
+
 symbols = sp.symbols('a_:'+str(n**2))
 matrix = sp.Matrix(n,n, symbols)
 string_matrix = [['' for i in range(n)] for j in range(n)]
@@ -47,9 +53,9 @@ def run_function_with_const(loc, constraints = matrix_constraints):
 
     count = 0
     best_result = None
-    num_starts = 10
+    num_starts = 140
     while count < 30:
-        results = [minimize(funcs_of_principal_minors[loc], np.random.rand(comb(n, 2)), bounds=bounds, constraints=constraints, method='trust-constr', tol=1e-6, options={'maxiter': 100, 'initial_constr_penalty': 10000}) for _ in range(num_starts)]
+        results = [minimize(funcs_of_principal_minors[loc], np.random.rand(comb(n, 2)), bounds=bounds, constraints=constraints, method='trust-constr', tol=tol, options={'maxiter': 300, 'initial_constr_penalty': 10000}) for _ in range(num_starts)]
 
         best_result = results[0]
         is_false = False
@@ -66,7 +72,7 @@ def run_function_with_const(loc, constraints = matrix_constraints):
             return best_result
         else:
             count += 1
-            num_starts = 100
+            num_starts = 300
 
     print(count)
     return best_result
@@ -93,10 +99,10 @@ funcs_of_principal_minors = tuple(
 )
 
 def compute_min_y(x):
-    return optimize_func(2, [[0, x]])
+    return optimize_func(1, [[0, x]])
 
 def compute_max_y(x):
-    results = optimize_func(2 + n, [[0 + n, -x]])
+    results = optimize_func(1 + n, [[0 + n, -x]])
     results.fun *= -1
     return results
 
@@ -104,7 +110,7 @@ def compute_min_z(point):
     return optimize_func(2, [[0,point[0]], [1,point[1]]])
 
 def compute_max_z(point):
-    results = optimize_func(2, [[0,point[0]], [1,point[1]]])
+    results = optimize_func(2+n, [[0+n,-point[0]], [1+n,-point[1]]])
     results.fun *= -1
     return results
 
@@ -121,19 +127,22 @@ def convert_optimize_result_to_dict(result):
         }
         return result_dict
 
-def save_optimization_results(results, filename="optimization_results.json"):
+def save_optimization_results(results_x, results_y, results_z, filename="optimization_results.json"):
     """Saves a list of optimization results to a JSON file."""
-    results_dict_list = [convert_optimize_result_to_dict(result) for result in results]
+    results_z = [convert_optimize_result_to_dict(result) for result in results_z]
+
+    results = [res for res in zip(results_x, results_y, results_z)]
 
     with open(filename, 'w') as f:
-            json.dump(results_dict_list, f, indent=4)
+            json.dump(results, f, indent=4)
 
-def save_spectra_results(results_x, results_y, filename="spectra_results.json"):
+def save_spectra_results(results_x, results_y, results_z, filename="spectra_results.json"):
     string_results = []
-    for point in zip(results_x, results_y):
+    for point in zip(results_x, results_y, results_z):
         dict_val = {
             'x': str(point[0]),
-            'y': str(point[1])
+            'y': str(point[1]),
+            'z': str(point[2])
         }
         string_results.append(dict_val)
     with open(filename, 'w') as f:
@@ -141,23 +150,17 @@ def save_spectra_results(results_x, results_y, filename="spectra_results.json"):
 
 if __name__ == '__main__':
     start_time = time.perf_counter()
-
-    x_values = np.linspace(0, n, 2)
-
+    x_values = np.linspace(0, n, points_len)
     with Pool() as pool:
         min_y_values = pool.map(compute_min_y, x_values)
         max_y_values = pool.map(compute_max_y, x_values)
 
-    # Create lists to store meshgrid points
     X_mesh = []
     Y_mesh = []
 
-    # Generate meshgrid points
-    i=0
-    for xi in x_values:
-        y_vals = np.linspace(min_y_values[i].fun, max_y_values[i].fun, 2)
-        i = i+1
-        X_mesh.append(np.full_like(y_vals, xi))
+    for i in range(len(x_values)):
+        y_vals = np.linspace(min_y_values[i].fun, max_y_values[i].fun, points_width)
+        X_mesh.append(np.full_like(y_vals, x_values[i]))
         Y_mesh.append(y_vals)
 
     X = np.concatenate(X_mesh)
@@ -169,16 +172,9 @@ if __name__ == '__main__':
         Z_min = pool.map(compute_min_z, zip(X,Y))
         Z_max = pool.map(compute_max_z, zip(X,Y))
 
-    print("Z Done")
+    print(f"Time taken to get coef data: {time.perf_counter() - start_time:.6f} seconds")
 
-    # Record end time
-    end_time_data = time.perf_counter()
+    save_optimization_results(X, Y, Z_min, "ds-sniep_min_values_4.json")
+    save_optimization_results(X, Y, Z_max, "ds-sniep_max_values_4.json")
 
-    # Calculate execution time
-    time_taken_data = end_time_data - start_time
-
-    print(f"Time taken to get coef data: {time_taken_data:.6f} seconds")
-
-    save_optimization_results(Z_min, "ds-sniep_min_values_4.json")
-    save_optimization_results(Z_max, "ds-sniep_max_values_5.json")
-
+    print("data saved.")
