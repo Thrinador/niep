@@ -42,14 +42,18 @@ def convert_optimize_result_to_dict(result):
         }
         return result_dict
 
-def save_optimization_results(results_x, results_y, results_z, filename="optimization_results.json"):
+def save_optimization_results(results_x, results_y, results_z=[], filename="optimization_results.json"):
     """Saves a list of optimization results to a JSON file."""
-    results_z = [convert_optimize_result_to_dict(result) for result in results_z]
-
-    results = [res for res in zip(results_x, results_y, results_z)]
-
-    with open(filename, 'w') as f:
-            json.dump(results, f, indent=4)
+    if results_z == []:
+        results_y = [convert_optimize_result_to_dict(result) for result in results_y]
+        results = [res for res in zip(results_x, results_y)]
+        with open(filename, 'w') as f:
+                json.dump(results, f, indent=4)
+    else:
+        results_z = [convert_optimize_result_to_dict(result) for result in results_z]
+        results = [res for res in zip(results_x, results_y, results_z)]
+        with open(filename, 'w') as f:
+                json.dump(results, f, indent=4)
 
 if __name__ == '__main__':
     start_time = time.perf_counter()
