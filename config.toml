@@ -1,0 +1,14 @@
+[global_data]
+# n represents the size of matrices you are working with.
+n = 4
+# For each piece of the optimization program tol specifies the tolerance you want.
+tol = 1e-6
+# points_dim represents the dimension of coefficient points desired.
+# To get the full dimension of a given n value there needs to be n-2 entries.
+points_dim = [2, 2]
+# Type specifies the type of problem you are optimizing over.
+# 0: Stochastic NIEP
+# 1: Doubly stochastic SNIEP
+type = 0
+# Name of file for data being saved. Note that an empty string will use the type default.
+save_location = ""

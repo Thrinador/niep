@@ -1,21 +1,15 @@
-import scipy
 import numpy as np
 from scipy.optimize import LinearConstraint, minimize, NonlinearConstraint
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 import sympy as sp
 from itertools import combinations
-import plotly.graph_objects as go
-from functools import partial
-from multiprocessing import Pool
-import time
-import json
+import tomli
+
+with open("config.toml", "rb") as f:
+    data = tomli.load(f)
 
 # Global variables
-n = 4
-tol = 1e-6
-points_len = 2
-points_width = 2
+n = data['global_data']['n']
+tol = data['global_data']['tol']
 
 symbols = sp.symbols('a_:'+str(n**2))
 matrix = sp.Matrix(n,n, symbols)

@@ -1,4 +1,17 @@
-from library_tools_niep import *
+import tomli
+import time
+import json
+from multiprocessing import Pool
+
+with open("config.toml", "rb") as f:
+    data = tomli.load(f)
+
+if data['global_data']['type'] == 0:
+     from library_tools_niep import *
+else:
+     from library_tools_ds_sniep import *
+
+points_dim = data['global_data']['points_dim']
 
 def compute_min_y(x):
     return optimize_func(1, [[0, x]])
@@ -40,7 +53,7 @@ def save_optimization_results(results_x, results_y, results_z, filename="optimiz
 
 if __name__ == '__main__':
     start_time = time.perf_counter()
-    x_values = np.linspace(0, n, points_len)
+    x_values = np.linspace(0, n, points_dim[0])
     with Pool() as pool:
         min_y_values = pool.map(compute_min_y, x_values)
         max_y_values = pool.map(compute_max_y, x_values)
@@ -49,7 +62,7 @@ if __name__ == '__main__':
     Y_mesh = []
 
     for i in range(len(x_values)):
-        y_vals = np.linspace(min_y_values[i].fun, max_y_values[i].fun, points_width)
+        y_vals = np.linspace(min_y_values[i].fun, max_y_values[i].fun, points_dim[1])
         X_mesh.append(np.full_like(y_vals, x_values[i]))
         Y_mesh.append(y_vals)
 
@@ -64,7 +77,11 @@ if __name__ == '__main__':
 
     print(f"Time taken to get coef data: {time.perf_counter() - start_time:.6f} seconds")
 
-    save_optimization_results(X, Y, Z_min, "niep_min_values_4.json")
-    save_optimization_results(X, Y, Z_max, "niep_max_values_4.json")
+    file_name_base = data['global_data']['save_location']
+    if file_name_base == "":
+         file_name_base = "niep" if data['global_data']['type'] == 0 else "ds-sniep"
+         
+    save_optimization_results(X, Y, Z_min, file_name_base + "_min_values_" + str(n) + ".json")
+    save_optimization_results(X, Y, Z_max, file_name_base + "_max_values_" + str(n) + ".json")
 
     print("data saved.")
