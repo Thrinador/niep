@@ -18,7 +18,7 @@ initial_runs = data['global_data']['initial_runs']
 subsequent_runs = data['global_data']['subsequent_runs']
 type = data['global_data']['type']
 num_variables = n**2 - n if type == 0 else comb(n, 2)
-
+funcs_to_optimize = data['global_data']['funcs_to_optimize']
 
 # Setup symbolic matrix to be working with.
 symbols = sp.symbols('a_:'+str(n**2))
@@ -100,20 +100,16 @@ def optimize_func(loc, eqs = []):
         return run_function_with_const(loc)
     equals = []
     for i in range(0, len(eqs)):
-        equals.append(NonlinearConstraint(
-        lambda x: funcs_of_principal_minors[eqs[i][0]](x) - eqs[i][1],
-        [0.0],
-        [0.0]
-    ))
+        equals.append(NonlinearConstraint(lambda x: funcs_of_principal_minors[eqs[i][0]](x), eqs[i][1], eqs[i][1]))
     equals.append(matrix_constraints)
     return run_function_with_const(loc, equals)
 
 funcs_of_principal_minors = tuple(
-    sp.lambdify([symbols[0:num_variables]], sum_matrix_minors(matrix, k), 'numpy')
-    for k in range(1, n+1)
+    sp.lambdify([symbols[0:num_variables]], sum_matrix_minors(matrix, k+1), 'numpy')
+    for k in range(n)
 ) + tuple(
-    sp.lambdify([symbols[0:num_variables]], -1*sum_matrix_minors(matrix, k), 'numpy')
-    for k in range(1, n+1)
+    sp.lambdify([symbols[0:num_variables]], -1*sum_matrix_minors(matrix, k+1), 'numpy')
+    for k in range(n)
 )
 
 def convert_optimize_result_to_dict(result):
@@ -164,37 +160,40 @@ def build_XY_mesh(x_values, min_y_values, max_y_values):
 
     return np.concatenate(X_mesh), np.concatenate(Y_mesh)
 
-def optimize_first_coord(coord=1):
+def optimize_first_func(constraint_loc=0, func_loc=1):
     x_values = np.linspace(0, n, points_dim[0])
     with Pool() as pool:
-        min_y_values = pool.map(lambda x: optimize_func(coord, [[0, x]]), x_values)
-        max_y_values = pool.map(lambda x: optimize_func(coord + n, [[0 + n, -x]]), x_values)
+        min_y_values = pool.map(lambda x: optimize_func(func_loc, [[constraint_loc, x]]), x_values)
+        max_y_values = pool.map(lambda x: optimize_func(func_loc + n, [[constraint_loc + n, -x]]), x_values)
         for max_y_val in max_y_values:
             max_y_val.fun *= -1
     return x_values, min_y_values, max_y_values
 
-def optimize_second_coord(X, Y, coord_1=1, coord_2=2):
+def optimize_second_func(X, Y, constraint_loc_1=0, constraint_loc_2=1, func_loc=2):
     with Pool() as pool:
-        Z_min = pool.map(lambda point: optimize_func(2, [[0,point[0]], [1,point[1]]]), zip(X,Y))
-        print(f"Z_min done in: {time.perf_counter() - start_time:.6f} seconds")
-        Z_max = pool.map(lambda point: optimize_func(2+n, [[0+n,-point[0]], [1+n,-point[1]]]), zip(X,Y))
+        Z_min = pool.map(lambda point: optimize_func(func_loc, [[constraint_loc_1,point[0]], [constraint_loc_2,point[1]]]), zip(X,Y))
+        Z_max = pool.map(lambda point: optimize_func(func_loc+n, [[constraint_loc_1+n,-point[0]], [constraint_loc_2+n,-point[1]]]), zip(X,Y))
         for max_z_val in Z_max:
             max_z_val.fun *= -1
     return Z_min, Z_max
 
-     
-
 if __name__ == '__main__':
+    print("Starting first func optimization.")
     start_time = time.perf_counter()
-    x_values, min_y_values, max_y_values = optimize_first_coord()
-    X, Y = build_XY_mesh(x_values, min_y_values, max_y_values)
-    print(f"XY done in: {time.perf_counter() - start_time:.6f} seconds")
+    x_values, min_y_values, max_y_values = optimize_first_func(func_loc=funcs_to_optimize[0])
+    print(f"First func optimized in {time.perf_counter() - start_time:.6f} seconds")
 
-    start_time = time.perf_counter()
-    Z_min, Z_max = optimize_second_coord(X,Y)
-    print(f"Time taken to get coef data: {time.perf_counter() - start_time:.6f} seconds")
-         
-    save_optimization_results(X, Y, Z_min, build_file_name(False))
-    save_optimization_results(X, Y, Z_max, build_file_name(True))
+    if len(funcs_to_optimize) > 1:
+        print("Starting second func optimization.")
+        start_time = time.perf_counter()
+        X, Y = build_XY_mesh(x_values, min_y_values, max_y_values)
+        Z_min, Z_max = optimize_second_func(X,Y)
+        print(f"Second func optimized in {time.perf_counter() - start_time:.6f} seconds")
+        save_optimization_results(X, Y, Z_min, build_file_name(False))
+        save_optimization_results(X, Y, Z_max, build_file_name(True))
+    else:
+        print("No second function, saving data")
+        save_optimization_results(x_values, min_y_values, build_file_name(False))
+        save_optimization_results(x_values, max_y_values, build_file_name(True))
 
     print("data saved.")
