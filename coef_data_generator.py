@@ -1,13 +1,120 @@
+import numpy as np
+from scipy.optimize import LinearConstraint, minimize, NonlinearConstraint
+import sympy as sp
+from itertools import combinations
+from math import comb
 import tomli
 import time
 import json
 from pathos.pools import ProcessPool as Pool
-from coef_optimizer import *
 
+# Build config variables
 with open("config.toml", "rb") as f:
     data = tomli.load(f)
-
 points_dim = data['global_data']['points_dim']
+n = data['global_data']['n']
+tol = data['global_data']['tol']
+initial_runs = data['global_data']['initial_runs']
+subsequent_runs = data['global_data']['subsequent_runs']
+type = data['global_data']['type']
+num_variables = n**2 - n if type == 0 else comb(n, 2)
+
+
+# Setup symbolic matrix to be working with.
+symbols = sp.symbols('a_:'+str(n**2))
+matrix = sp.Matrix(n,n, symbols)
+string_matrix = [['' for i in range(n)] for j in range(n)]
+
+A = np.zeros((n, num_variables))
+m=0
+if type == 0:
+    for j in range(n):   
+        for k in range(n):
+            if k == j:
+                matrix[j,k] = 'a_16'
+                continue
+            string_matrix[j][k] = '-a_'+str(m)
+            matrix[j,k] = 'a_'+str(m)
+            A[j][m-1] = 1
+            m+=1
+
+        row_sum = '1'
+        for k in range(n):
+            row_sum += string_matrix[j][k]
+        matrix[j,j] = row_sum
+else:
+    for j in range(n):   
+        for k in range(j,n):
+            if k == j:
+                matrix[j,k] = 'a_16'
+                continue
+            string_matrix[j][k] = '-a_'+str(m)
+            string_matrix[k][j] = '-a_'+str(m)
+            matrix[j,k] = 'a_'+str(m)
+            matrix[k,j] = 'a_'+str(m)
+            A[j][m] = 1
+            A[k][m] = 1
+            m+=1
+
+        row_sum = '1'
+        for k in range(n):
+            row_sum += string_matrix[j][k]
+        matrix[j,j] = row_sum
+
+matrix_constraints = LinearConstraint(A, np.zeros(n), np.ones(n))
+
+def sum_matrix_minors(matrix, k):
+    return sum(matrix[i, i].det() for i in combinations(range(n), k))
+
+def run_function_with_const(loc, constraints = matrix_constraints):
+    bounds = [(0.0, 1.0)] * num_variables
+
+    count = 0
+    best_result = None
+    num_starts = initial_runs
+    while count < 30:
+        results = [minimize(funcs_of_principal_minors[loc], np.random.rand(num_variables), bounds=bounds, constraints=constraints, method='trust-constr', tol=tol, options={'maxiter': 300, 'initial_constr_penalty': 10000}) for _ in range(num_starts)]
+
+        best_result = results[0]
+        is_false = False
+        for result in results:
+            if result.success:
+                is_false = True
+                best_result = result
+                break
+
+        if is_false:
+            for result in results:
+                if result.fun <= best_result.fun and result.success:
+                    best_result = result
+            return best_result
+        else:
+            count += 1
+            num_starts = subsequent_runs
+
+    print(count)
+    return best_result
+
+def optimize_func(loc, eqs = []):
+    if len(eqs) == 0:
+        return run_function_with_const(loc)
+    equals = []
+    for i in range(0, len(eqs)):
+        equals.append(NonlinearConstraint(
+        lambda x: funcs_of_principal_minors[eqs[i][0]](x) - eqs[i][1],
+        [0.0],
+        [0.0]
+    ))
+    equals.append(matrix_constraints)
+    return run_function_with_const(loc, equals)
+
+funcs_of_principal_minors = tuple(
+    sp.lambdify([symbols[0:num_variables]], sum_matrix_minors(matrix, k), 'numpy')
+    for k in range(1, n+1)
+) + tuple(
+    sp.lambdify([symbols[0:num_variables]], -1*sum_matrix_minors(matrix, k), 'numpy')
+    for k in range(1, n+1)
+)
 
 def convert_optimize_result_to_dict(result):
     """Converts a scipy OptimizeResult object to a dictionary."""
@@ -57,27 +164,34 @@ def build_XY_mesh(x_values, min_y_values, max_y_values):
 
     return np.concatenate(X_mesh), np.concatenate(Y_mesh)
 
-if __name__ == '__main__':
-    start_time = time.perf_counter()
+def optimize_first_coord(coord=1):
     x_values = np.linspace(0, n, points_dim[0])
     with Pool() as pool:
-        min_y_values = pool.map(lambda x: optimize_func(1, [[0, x]]), x_values)
-        max_y_values = pool.map(lambda x: optimize_func(1 + n, [[0 + n, -x]]), x_values)
+        min_y_values = pool.map(lambda x: optimize_func(coord, [[0, x]]), x_values)
+        max_y_values = pool.map(lambda x: optimize_func(coord + n, [[0 + n, -x]]), x_values)
         for max_y_val in max_y_values:
             max_y_val.fun *= -1
+    return x_values, min_y_values, max_y_values
 
-    X, Y = build_XY_mesh(x_values, min_y_values, max_y_values)
-
-    print(f"XY done in: {time.perf_counter() - start_time:.6f} seconds")
-    start_time = time.perf_counter()
-
+def optimize_second_coord(X, Y, coord_1=1, coord_2=2):
     with Pool() as pool:
         Z_min = pool.map(lambda point: optimize_func(2, [[0,point[0]], [1,point[1]]]), zip(X,Y))
         print(f"Z_min done in: {time.perf_counter() - start_time:.6f} seconds")
         Z_max = pool.map(lambda point: optimize_func(2+n, [[0+n,-point[0]], [1+n,-point[1]]]), zip(X,Y))
         for max_z_val in Z_max:
             max_z_val.fun *= -1
+    return Z_min, Z_max
 
+     
+
+if __name__ == '__main__':
+    start_time = time.perf_counter()
+    x_values, min_y_values, max_y_values = optimize_first_coord()
+    X, Y = build_XY_mesh(x_values, min_y_values, max_y_values)
+    print(f"XY done in: {time.perf_counter() - start_time:.6f} seconds")
+
+    start_time = time.perf_counter()
+    Z_min, Z_max = optimize_second_coord(X,Y)
     print(f"Time taken to get coef data: {time.perf_counter() - start_time:.6f} seconds")
          
     save_optimization_results(X, Y, Z_min, build_file_name(False))
