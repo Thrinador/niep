@@ -81,7 +81,7 @@ if __name__ == '__main__':
     if file_name_base == "":
          file_name_base = "niep" if data['global_data']['type'] == 0 else "ds-sniep"
          
-    save_optimization_results(X, Y, Z_min, file_name_base + "_min_values_" + str(n) + ".json")
-    save_optimization_results(X, Y, Z_max, file_name_base + "_max_values_" + str(n) + ".json")
+    save_optimization_results(X, Y, Z_min, "/data/" + file_name_base + "_min_values_" + str(n) + ".json")
+    save_optimization_results(X, Y, Z_max, "/data/" + file_name_base + "_max_values_" + str(n) + ".json")
 
     print("data saved.")
