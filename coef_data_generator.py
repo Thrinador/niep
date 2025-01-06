@@ -98,9 +98,7 @@ def run_function_with_const(loc, constraints = matrix_constraints):
 def optimize_func(loc, eqs = []):
     if len(eqs) == 0:
         return run_function_with_const(loc)
-    equals = []
-    for i in range(0, len(eqs)):
-        equals.append(NonlinearConstraint(lambda x: funcs_of_principal_minors[eqs[i][0]](x), eqs[i][1], eqs[i][1]))
+    equals = [NonlinearConstraint(lambda x, j=i: funcs_of_principal_minors[eqs[j][0]](x) - eqs[j][1], 0,0) for i in range(len(eqs))]
     equals.append(matrix_constraints)
     return run_function_with_const(loc, equals)
 

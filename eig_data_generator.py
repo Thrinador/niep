@@ -60,10 +60,10 @@ def save_results(results, filename):
     with open(filename, 'w') as f:
             json.dump(results, f, indent=4)
 
-with open('data/ds-sniep/ds-sniep_max_values_4_100_100.json') as f:
+with open('data/ds-sniep/ds-sniep_max_values_4_4_4.json') as f:
     max_vals = json.load(f)
 
-with open('data/ds-sniep/ds-sniep_min_values_4_100_100.json') as f:
+with open('data/ds-sniep/ds-sniep_min_values_4_4_4.json') as f:
     min_vals = json.load(f)
 
 start_time = time.perf_counter()
@@ -79,5 +79,5 @@ min_eigvals = [find_eigenvalues(x) for x in min_matrices]
 
 print(f"Eigenvalues found in {time.perf_counter() - start_time:.6f} seconds")
 
-save_results(max_eigvals, "data/ds-sniep/test_min.json")
-save_results(min_eigvals, "data/ds-sniep/test_max.json")
+save_results(max_eigvals, "data/ds-sniep/test2_min.json")
+save_results(min_eigvals, "data/ds-sniep/test2_max.json")
