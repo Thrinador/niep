@@ -5,7 +5,7 @@ n = 4
 tol = 1e-6
 # points_dim represents the dimension of coefficient points desired.
 # To get the full dimension of a given n value there needs to be n-2 entries.
-points_dim = [4, 4]
+points_dim = [10,10]
 # Type specifies the type of problem you are optimizing over.
 # 0: Stochastic NIEP
 # 1: Doubly stochastic SNIEP

@@ -1,9 +1,0 @@
-[global_data]
-# Size of matrix the data came from
-n = 4
-# Path location to the max and min coefficients to load.
-load_data_max_path = ""
-load_data_min_path = ""
-# Path locations to the max and min spectra to save.
-save_data_max_path = ""
-save_data_min_path = ""
