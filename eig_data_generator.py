@@ -4,7 +4,7 @@ import numpy as np
 import time
 
 # Build config variables
-with open("eig_config.toml", "rb") as f:
+with open("config.toml", "rb") as f:
     data = tomli.load(f)
 
 type = data['global_data']['type']

@@ -8,7 +8,7 @@ from pathos.pools import ProcessPool as Pool
 import dill
 
 # Build config variables
-with open("coef_config.toml", "rb") as f:
+with open("config.toml", "rb") as f:
     data = tomli.load(f)
 points_dim = data['global_data']['points_dim']
 n = data['global_data']['n']

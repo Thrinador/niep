@@ -9,6 +9,7 @@ points_dim = [4,4]
 # Type specifies the type of problem you are optimizing over.
 # 0: Stochastic NIEP
 # 1: Doubly stochastic SNIEP
+# 2: Stochastic circulant matrices. TODO.
 type = 0
 # Name of file for data being saved. Note that an empty string will use the type default.
 save_location = ""
