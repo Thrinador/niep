@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.optimize import LinearConstraint, minimize, NonlinearConstraint
+from scipy.optimize import LinearConstraint, minimize, NonlinearConstraint, differential_evolution
 import sympy as sp
 from itertools import combinations
 from math import comb
@@ -35,13 +35,15 @@ if type == 0:
                 continue
             string_matrix[j][k] = '-a_'+str(m)
             matrix[j,k] = 'a_'+str(m)
-            A[j][m-1] = 1
             m+=1
+            A[j][m-1] = 1
 
         row_sum = '1'
         for k in range(n):
             row_sum += string_matrix[j][k]
         matrix[j,j] = row_sum
+    print(A)
+    print(matrix)
 else:
     for j in range(n):   
         for k in range(j,n):
@@ -67,13 +69,17 @@ def sum_matrix_minors(matrix, k):
     return sum(matrix[i, i].det() for i in combinations(range(n), k))
 
 def run_function_with_const(loc, constraints = matrix_constraints):
-    bounds = [(0.0, 1.0)] * num_variables
-
     count = 0
     best_result = None
     num_starts = initial_runs
-    while count < 30:
-        results = [minimize(funcs_of_principal_minors[loc], np.random.rand(num_variables), bounds=bounds, constraints=constraints, method='trust-constr', tol=tol, options={'maxiter': 300, 'initial_constr_penalty': 10000}) for _ in range(num_starts)]
+    while count < 10:
+        results = [minimize(funcs_of_principal_minors[loc], 
+                    np.random.rand(num_variables), 
+                    bounds=[(0.0, 1.0)] * num_variables, 
+                    constraints=constraints, 
+                    method='trust-constr', 
+                    tol=tol, 
+                    options={'maxiter': 200, 'initial_constr_penalty': 100}) for _ in range(num_starts)]
 
         best_result = results[0]
         is_false = False
@@ -102,6 +108,8 @@ def optimize_func(loc, eqs = []):
     equals.append(matrix_constraints)
     return run_function_with_const(loc, equals)
 
+print(symbols[0:num_variables])
+
 funcs_of_principal_minors = tuple(
     sp.lambdify([symbols[0:num_variables]], sum_matrix_minors(matrix, k+1), 'numpy')
     for k in range(n)
@@ -116,7 +124,7 @@ def convert_optimize_result_to_dict(result):
         return None
     
     result_dict = {
-        'matrix': result.x.tolist() if isinstance(result.x, np.ndarray) else result.x,
+        'matrix': result.x.tolist(),
         'success': result.success,
         'output': result.fun,
         'message': result.message
@@ -191,7 +199,5 @@ if __name__ == '__main__':
         save_optimization_results(X, Y, Z_max, build_file_name(True))
     else:
         print("No second function, saving data")
-        save_optimization_results(x_values, min_y_values, build_file_name(False))
-        save_optimization_results(x_values, max_y_values, build_file_name(True))
-
-    print("data saved.")
+        save_optimization_results(x_values, min_y_values, filename=build_file_name(False))
+        save_optimization_results(x_values, max_y_values, filename=build_file_name(True))
