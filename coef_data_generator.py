@@ -1,12 +1,11 @@
 import numpy as np
-from scipy.optimize import LinearConstraint, minimize, NonlinearConstraint, differential_evolution
-import sympy as sp
-from itertools import combinations
+from scipy.optimize import LinearConstraint, minimize, NonlinearConstraint
 from math import comb
 import tomli
 import time
 import json
 from pathos.pools import ProcessPool as Pool
+import dill
 
 # Build config variables
 with open("coef_config.toml", "rb") as f:
@@ -20,53 +19,23 @@ type = data['global_data']['type']
 num_variables = n**2 - n if type == 0 else comb(n, 2)
 funcs_to_optimize = data['global_data']['funcs_to_optimize']
 
-# Setup symbolic matrix to be working with.
-symbols = sp.symbols('a_:'+str(n**2))
-matrix = sp.Matrix(n,n, symbols)
-string_matrix = [['' for i in range(n)] for j in range(n)]
-
 A = np.zeros((n, num_variables))
 m=0
 if type == 0:
     for j in range(n):   
         for k in range(n):
-            if k == j:
-                matrix[j,k] = 'a_16'
-                continue
-            string_matrix[j][k] = '-a_'+str(m)
-            matrix[j,k] = 'a_'+str(m)
-            m+=1
-            A[j][m-1] = 1
-
-        row_sum = '1'
-        for k in range(n):
-            row_sum += string_matrix[j][k]
-        matrix[j,j] = row_sum
-    print(A)
-    print(matrix)
+            if k != j:
+                m+=1
+                A[j][m-1] = 1
 else:
     for j in range(n):   
         for k in range(j,n):
-            if k == j:
-                matrix[j,k] = 'a_16'
-                continue
-            string_matrix[j][k] = '-a_'+str(m)
-            string_matrix[k][j] = '-a_'+str(m)
-            matrix[j,k] = 'a_'+str(m)
-            matrix[k,j] = 'a_'+str(m)
-            A[j][m] = 1
-            A[k][m] = 1
-            m+=1
-
-        row_sum = '1'
-        for k in range(n):
-            row_sum += string_matrix[j][k]
-        matrix[j,j] = row_sum
+            if k != j:
+                A[j][m] = 1
+                A[k][m] = 1
+                m+=1
 
 matrix_constraints = LinearConstraint(A, np.zeros(n), np.ones(n))
-
-def sum_matrix_minors(matrix, k):
-    return sum(matrix[i, i].det() for i in combinations(range(n), k))
 
 def run_function_with_const(loc, constraints = matrix_constraints):
     count = 0
@@ -108,15 +77,7 @@ def optimize_func(loc, eqs = []):
     equals.append(matrix_constraints)
     return run_function_with_const(loc, equals)
 
-print(symbols[0:num_variables])
-
-funcs_of_principal_minors = tuple(
-    sp.lambdify([symbols[0:num_variables]], sum_matrix_minors(matrix, k+1), 'numpy')
-    for k in range(n)
-) + tuple(
-    sp.lambdify([symbols[0:num_variables]], -1*sum_matrix_minors(matrix, k+1), 'numpy')
-    for k in range(n)
-)
+funcs_of_principal_minors=dill.load(open("lambdified_functions/" + ("niep_" if type == 0 else "ds-sniep") + str(n), "rb")) 
 
 def convert_optimize_result_to_dict(result):
     """Converts a scipy OptimizeResult object to a dictionary."""
@@ -170,15 +131,15 @@ def optimize_first_func(constraint_loc=0, func_loc=1):
     x_values = np.linspace(0, n, points_dim[0])
     with Pool() as pool:
         min_y_values = pool.map(lambda x: optimize_func(func_loc, [[constraint_loc, x]]), x_values)
-        max_y_values = pool.map(lambda x: optimize_func(func_loc + n, [[constraint_loc + n, -x]]), x_values)
+        max_y_values = pool.map(lambda x: optimize_func(func_loc + n, [[constraint_loc+n, -x]]), x_values)
         for max_y_val in max_y_values:
             max_y_val.fun *= -1
     return x_values, min_y_values, max_y_values
 
 def optimize_second_func(X, Y, constraint_loc_1=0, constraint_loc_2=1, func_loc=2):
     with Pool() as pool:
-        Z_min = pool.map(lambda point: optimize_func(func_loc, [[constraint_loc_1,point[0]], [constraint_loc_2,point[1]]]), zip(X,Y))
-        Z_max = pool.map(lambda point: optimize_func(func_loc+n, [[constraint_loc_1+n,-point[0]], [constraint_loc_2+n,-point[1]]]), zip(X,Y))
+        Z_min = pool.map(lambda point: optimize_func(func_loc, [[constraint_loc_1, point[0]], [constraint_loc_2, point[1]]]), zip(X,Y))
+        Z_max = pool.map(lambda point: optimize_func(func_loc+n, [[constraint_loc_1, point[0]], [constraint_loc_2, point[1]]]), zip(X,Y))
         for max_z_val in Z_max:
             max_z_val.fun *= -1
     return Z_min, Z_max
