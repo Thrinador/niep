@@ -77,7 +77,7 @@ def optimize_func(loc, eqs = []):
     equals.append(matrix_constraints)
     return run_function_with_const(loc, equals)
 
-funcs_of_principal_minors=dill.load(open("lambdified_functions/" + ("niep_" if type == 0 else "ds-sniep") + str(n), "rb")) 
+funcs_of_principal_minors=dill.load(open("lambdified_functions/" + ("niep_" if type == 0 else "ds-sniep_") + str(n), "rb")) 
 
 def convert_optimize_result_to_dict(result):
     """Converts a scipy OptimizeResult object to a dictionary."""

@@ -45,9 +45,9 @@ def save_results(results, filename):
             json.dump(results, f, indent=4)
 
 start_time = time.perf_counter()
-with open('data/ds-sniep/ds-sniep_max_values_4_200_1.json') as f:
+with open('data/ds-sniep/ds-sniep_max_values_4_100_100.json') as f:
     max_matrices = [build_matrix(x[2]['matrix']) for x in json.load(f)]
-with open('data/ds-sniep/ds-sniep_min_values_4_200_1.json') as f:
+with open('data/ds-sniep/ds-sniep_min_values_4_100_100.json') as f:
     min_matrices = [build_matrix(x[2]['matrix']) for x in json.load(f)]
 print(f"Matrices loaded and built in {time.perf_counter() - start_time:.6f} seconds")
 
@@ -56,6 +56,6 @@ max_eigvals = [[find_eigenvalues(x), x.tolist()] for x in max_matrices]
 min_eigvals = [[find_eigenvalues(x), x.tolist()] for x in min_matrices]
 print(f"Eigenvalues found in {time.perf_counter() - start_time:.6f} seconds")
 
-save_results(max_eigvals, "data/ds-sniep/test4_min.json")
-save_results(min_eigvals, "data/ds-sniep/test4_max.json")
+save_results(max_eigvals, "data/ds-sniep/ds-sniep_max_eig_4_100_100.json")
+save_results(min_eigvals, "data/ds-sniep/ds-sniep_min_eig_4_100_100.json")
 print("Data saved")

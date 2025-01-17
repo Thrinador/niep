@@ -3,12 +3,16 @@ from itertools import combinations
 from math import comb
 import tomli
 import dill
+import sys
+
+sys.setrecursionlimit(10000)
+
 def sum_matrix_minors(matrix, k):
     return sum(matrix[i, i].det() for i in combinations(range(n), k))
 
 if __name__ == '__main__':
     # Build config variables
-    with open("coef_config.toml", "rb") as f:
+    with open("config.toml", "rb") as f:
         data = tomli.load(f)
     n = data['global_data']['n']
     type = data['global_data']['type']
