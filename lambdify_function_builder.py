@@ -16,7 +16,7 @@ if __name__ == '__main__':
         data = tomli.load(f)
     n = data['global_data']['n']
     type = data['global_data']['type']
-    num_variables = n**2 - n if type == 0 else comb(n, 2)
+    num_variables = n**2 - n if type == 0 else comb(n, 2) if type == 1 else comb(n+1, 2)
 
     # Setup symbolic matrix to be working with.
     symbols = sp.symbols('a_:'+str(n**2))
@@ -34,7 +34,7 @@ if __name__ == '__main__':
             for k in range(n):
                 row_sum += string_matrix[j][k]
             matrix[j,j] = row_sum
-    else:
+    elif type == 1:
         for j in range(n):   
             for k in range(j,n):
                 if k != j:
@@ -48,6 +48,12 @@ if __name__ == '__main__':
             for k in range(n):
                 row_sum += string_matrix[j][k]
             matrix[j,j] = row_sum
+    elif type == 2:
+        for j in range(n):   
+            for k in range(j,n):
+                matrix[j,k] = 'a_'+str(m)
+                matrix[k,j] = 'a_'+str(m)
+                m+=1
 
     print("Building functions")
     funcs_of_principal_minors = tuple(
@@ -61,6 +67,8 @@ if __name__ == '__main__':
     dill.settings['recurse'] = True
     if type == 0:
         dill.dump(list(funcs_of_principal_minors), open("lambdified_functions/niep_" + str(n), "wb"))
-    else:
+    elif type == 1:
         dill.dump(list(funcs_of_principal_minors), open("lambdified_functions/ds-sniep_" + str(n), "wb"))
+    elif type == 2:
+        dill.dump(list(funcs_of_principal_minors), open("lambdified_functions/sniep_" + str(n), "wb"))
 

@@ -18,26 +18,37 @@ subsequent_runs = data['global_data']['subsequent_runs']
 type = data['global_data']['type']
 num_variables = n**2 - n if type == 0 else comb(n, 2)
 funcs_to_optimize = data['global_data']['funcs_to_optimize']
-
-A = np.zeros((n, num_variables))
-m=0
+funcs_of_principal_minors = None
 if type == 0:
-    for j in range(n):   
-        for k in range(n):
-            if k != j:
-                m+=1
-                A[j][m-1] = 1
-else:
-    for j in range(n):   
-        for k in range(j,n):
-            if k != j:
-                A[j][m] = 1
-                A[k][m] = 1
-                m+=1
+    funcs_of_principal_minors=dill.load(open("lambdified_functions/niep_" + str(n), "rb")) 
+elif type == 1:
+    funcs_of_principal_minors=dill.load(open("lambdified_functions/ds-sniep_" + str(n), "rb"))
+elif type == 2:
+    funcs_of_principal_minors=dill.load(open("lambdified_functions/sniep_" + str(n), "rb"))
 
-matrix_constraints = LinearConstraint(A, np.zeros(n), np.ones(n))
 
-def run_function_with_const(loc, constraints = matrix_constraints):
+def build_matrix_constraints():
+    A = np.zeros((n, num_variables))
+    m=0
+    if type == 0 or type == 1:
+        if type == 0:
+            for j in range(n):   
+                for k in range(n):
+                    if k != j:
+                        m+=1
+                        A[j][m-1] = 1
+        else:
+            for j in range(n):   
+                for k in range(j,n):
+                    if k != j:
+                        A[j][m] = 1
+                        A[k][m] = 1
+                        m+=1
+        return LinearConstraint(A, np.zeros(n), np.ones(n))
+    else:
+        return None
+
+def run_function_with_const(loc, constraints):
     count = 0
     best_result = None
     num_starts = initial_runs
@@ -74,10 +85,9 @@ def optimize_func(loc, eqs = []):
     if len(eqs) == 0:
         return run_function_with_const(loc)
     equals = [NonlinearConstraint(lambda x, j=i: funcs_of_principal_minors[eqs[j][0]](x) - eqs[j][1], 0,0) for i in range(len(eqs))]
-    equals.append(matrix_constraints)
+    if type == 0 or type == 1:
+        equals.append(build_matrix_constraints())
     return run_function_with_const(loc, equals)
-
-funcs_of_principal_minors=dill.load(open("lambdified_functions/" + ("niep_" if type == 0 else "ds-sniep_") + str(n), "rb")) 
 
 def convert_optimize_result_to_dict(result):
     """Converts a scipy OptimizeResult object to a dictionary."""
