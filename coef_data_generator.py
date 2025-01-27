@@ -16,7 +16,7 @@ tol = data['global_data']['tol']
 initial_runs = data['global_data']['initial_runs']
 subsequent_runs = data['global_data']['subsequent_runs']
 type = data['global_data']['type']
-num_variables = n**2 - n if type == 0 else comb(n, 2)
+num_variables = n**2 - n if type == 0 else comb(n, 2) if type == 1 else comb(n+1, 2)
 funcs_to_optimize = data['global_data']['funcs_to_optimize']
 funcs_of_principal_minors = None
 if type == 0:
@@ -116,15 +116,19 @@ def save_optimization_results(results_x, results_y, results_z=[], filename="opti
                 json.dump(results, f, indent=4)
 
 def build_file_name(is_max):
-    type = "niep/" if data['global_data']['type'] == 0 else "ds-sniep/"
-    base = data['global_data']['save_location']
-    if base == "":
-        base = "niep" if data['global_data']['type'] == 0 else "ds-sniep"
+    base = ""
+    if type == 0:
+        base = "niep"
+    if type == 1:
+        base = "ds-sniep"
+    if type == 2:
+        base = "sniep"
+
     maxmin = "_max_values_" if is_max else "_min_values_"
     runs = ""
     for dim in points_dim:
          runs += "_" + str(dim)
-    return "data/" + type + base + maxmin + str(n) + runs + ".json"
+    return "data/" + base + "/" + base + maxmin + str(n) + runs + ".json"
 
 def build_XY_mesh(x_values, min_y_values, max_y_values):
     X_mesh = []
