@@ -5,7 +5,7 @@ n = 5
 tol = 1e-5
 # points_dim represents the dimension of coefficient points desired.
 # To get the full dimension of a given n value there needs to be n-2 entries.
-points_dim = [5,5]
+points_dim = [3,3]
 # Type specifies the type of problem you are optimizing over.
 # 0: Stochastic NIEP
 # 1: Doubly stochastic SNIEP
@@ -14,9 +14,9 @@ type = 1
 # Name of file for data being saved. Note that an empty string will use the type default.
 save_location = ""
 # How many runs should the optimizer initial try to find the best result?
-initial_runs = 100
+initial_runs = 2
 # If the initial run fails how many subsequence runs should it try?
-subsequent_runs = 400
+subsequent_runs = 2
 # funcs_to_optimize is an array that tries to minimize functions in order given.
 # Right now the first function used is always the trace. So 2 entries in the array will
 # give 3d data. Right now this is restricted to 3d data.

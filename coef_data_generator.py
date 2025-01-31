@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.optimize import LinearConstraint, minimize, NonlinearConstraint
+from scipy.optimize import LinearConstraint, minimize, NonlinearConstraint, differential_evolution
 from math import comb
 import tomli
 import time
@@ -53,6 +53,15 @@ def run_function_with_const(loc, constraints):
     best_result = None
     num_starts = initial_runs
     while count < 10:
+        results = [differential_evolution(funcs_of_principal_minors[loc], 
+                    bounds=[(0.0, 1.0)] * num_variables, 
+                    constraints=constraints, 
+                    maxiter=50000,
+                    polish=False,
+                    ) for _ in range(num_starts)]
+        print("Finished round")
+        print(results[0])
+        '''
         results = [minimize(funcs_of_principal_minors[loc], 
                     np.random.rand(num_variables), 
                     bounds=[(0.0, 1.0)] * num_variables, 
@@ -60,6 +69,7 @@ def run_function_with_const(loc, constraints):
                     method='trust-constr', 
                     tol=tol, 
                     options={'maxiter': 200, 'initial_constr_penalty': 100}) for _ in range(num_starts)]
+        '''
 
         best_result = results[0]
         is_false = False
@@ -84,7 +94,7 @@ def run_function_with_const(loc, constraints):
 def optimize_func(loc, eqs = []):
     if len(eqs) == 0:
         return run_function_with_const(loc)
-    equals = [NonlinearConstraint(lambda x, j=i: funcs_of_principal_minors[eqs[j][0]](x) - eqs[j][1], 0,0) for i in range(len(eqs))]
+    equals = [NonlinearConstraint(lambda x, j=i: funcs_of_principal_minors[eqs[j][0]](x) - eqs[j][1], -0.1,0.1) for i in range(len(eqs))]
     if type == 0 or type == 1:
         equals.append(build_matrix_constraints())
     return run_function_with_const(loc, equals)
@@ -141,6 +151,9 @@ def build_XY_mesh(x_values, min_y_values, max_y_values):
 
     return np.concatenate(X_mesh), np.concatenate(Y_mesh)
 
+def build_XYZ_mesh(X, Y, Z_min, Z_max):
+    return 0
+
 def optimize_first_func(constraint_loc=0, func_loc=1):
     x_values = np.linspace(0, n, points_dim[0])
     with Pool() as pool:
@@ -158,21 +171,51 @@ def optimize_second_func(X, Y, constraint_loc_1=0, constraint_loc_2=1, func_loc=
             max_z_val.fun *= -1
     return Z_min, Z_max
 
-if __name__ == '__main__':
+def optimize_third_func(X, Y, constraint_loc_1=0, constraint_loc_2=1, func_loc=2):
+    with Pool() as pool:
+        Z_min = pool.map(lambda point: optimize_func(func_loc, [[constraint_loc_1, point[0]], [constraint_loc_2, point[1]]]), zip(X,Y))
+        Z_max = pool.map(lambda point: optimize_func(func_loc+n, [[constraint_loc_1, point[0]], [constraint_loc_2, point[1]]]), zip(X,Y))
+        for max_z_val in Z_max:
+            max_z_val.fun *= -1
+    return Z_min, Z_max
+
+def optimize():
     print("Starting first func optimization.")
     start_time = time.perf_counter()
     x_values, min_y_values, max_y_values = optimize_first_func(func_loc=funcs_to_optimize[0])
     print(f"First func optimized in {time.perf_counter() - start_time:.6f} seconds")
 
-    if len(funcs_to_optimize) > 1:
-        print("Starting second func optimization.")
-        start_time = time.perf_counter()
-        X, Y = build_XY_mesh(x_values, min_y_values, max_y_values)
-        Z_min, Z_max = optimize_second_func(X,Y)
-        print(f"Second func optimized in {time.perf_counter() - start_time:.6f} seconds")
-        save_optimization_results(X, Y, Z_min, build_file_name(False))
-        save_optimization_results(X, Y, Z_max, build_file_name(True))
-    else:
+    if len(funcs_to_optimize) == 1:
         print("No second function, saving data")
         save_optimization_results(x_values, min_y_values, filename=build_file_name(False))
         save_optimization_results(x_values, max_y_values, filename=build_file_name(True))
+        return 0;
+
+    print("Starting second func optimization.")
+    start_time = time.perf_counter()
+    X, Y = build_XY_mesh(x_values, min_y_values, max_y_values)
+    Z_min, Z_max = optimize_second_func(X,Y)
+    print(f"Second func optimized in {time.perf_counter() - start_time:.6f} seconds")
+    
+    if len(funcs_to_optimize) == 2:
+        print("No third function, saving data")
+        save_optimization_results(X, Y, Z_min, build_file_name(False))
+        save_optimization_results(X, Y, Z_max, build_file_name(True))
+
+    print("Starting third function optimization.")
+    start_time = time.perf_counter()
+    X, Y, Z = build_XYZ_mesh(X, Y, Z_min, Z_max)
+    W_min, W_max = optimize_third_func(X,Y,Z)
+
+def compute_eigenvalues():
+    return 0
+    
+def make_plots():
+    return 0
+
+
+if __name__ == '__main__':
+    optimize()
+    compute_eigenvalues()
+    make_plots()
+        
