@@ -2,15 +2,15 @@
 # n represents the size of matrices you are working with.
 n = 5
 # For each piece of the optimization program tol specifies the tolerance you want.
-tol = 1e-5
+tol = 1e-3
 # points_dim represents the dimension of coefficient points desired.
 # To get the full dimension of a given n value there needs to be n-2 entries.
-points_dim = [3,3]
+points_dim = [2,2,2]
 # Type specifies the type of problem you are optimizing over.
 # 0: Stochastic NIEP
 # 1: Doubly stochastic SNIEP
 # 2: SNIEP (entries between 0 and 1)
-type = 1
+type = 2
 # Name of file for data being saved. Note that an empty string will use the type default.
 save_location = ""
 # How many runs should the optimizer initial try to find the best result?
@@ -20,4 +20,4 @@ subsequent_runs = 2
 # funcs_to_optimize is an array that tries to minimize functions in order given.
 # Right now the first function used is always the trace. So 2 entries in the array will
 # give 3d data. Right now this is restricted to 3d data.
-funcs_to_optimize = [1, 2]
+funcs_to_optimize = [1, 2, 3]
