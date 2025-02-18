@@ -59,8 +59,7 @@ def run_function_with_const(loc, constraints):
                     maxiter=50000,
                     polish=False,
                     ) for _ in range(num_starts)]
-        # print("Finished round")
-        # print(results[0])
+        
         '''
         results = [minimize(funcs_of_principal_minors[loc], 
                     np.random.rand(num_variables), 
@@ -125,12 +124,12 @@ def save_optimization_results(results_x, results_y, results_z=[], results_w=[], 
         with open(filename, 'w') as f:
                 json.dump(results, f, indent=4)
     else:
-        results_w = [convert_optimize_result_to_dict(result) for result in results_z]
+        results_w = [convert_optimize_result_to_dict(result) for result in results_w]
         results = [res for res in zip(results_x, results_y, results_z, results_w)]
         with open(filename, 'w') as f:
                 json.dump(results, f, indent=4)
 
-def build_file_name(is_max):
+def build_file_name(is_max, is_coef=True):
     base = ""
     if type == 0:
         base = "niep"
@@ -139,11 +138,12 @@ def build_file_name(is_max):
     if type == 2:
         base = "sniep"
 
-    maxmin = "_max_values_" if is_max else "_min_values_"
+    maxmin = "_max_" if is_max else "_min_"
+    coefeig = "values_" if is_coef else "eig_"
     runs = ""
     for dim in points_dim:
          runs += "_" + str(dim)
-    return "data/" + base + "/" + base + maxmin + str(n) + runs + ".json"
+    return "data/" + base + "/" + base + maxmin + coefeig + str(n) + runs + ".json"
 
 def build_matrix(array):
     matrix = np.zeros((n,n))
@@ -187,7 +187,6 @@ def build_XY_mesh(x_values, min_y_values, max_y_values):
         y_vals = np.linspace(min_y_values[i].fun, max_y_values[i].fun, points_dim[1])
         X_mesh.append(np.full_like(y_vals, x_values[i]))
         Y_mesh.append(y_vals)
-    print(X_mesh)
     return np.concatenate(X_mesh), np.concatenate(Y_mesh)
 
 def build_XYZ_mesh(X, Y, Z_min, Z_max):
@@ -255,15 +254,16 @@ def optimize():
     start_time = time.perf_counter()
     X, Y, Z = build_XYZ_mesh(X, Y, Z_min, Z_max)
     W_min, W_max = optimize_third_func(X,Y,Z)
+    print(f"Third func optimized in {time.perf_counter() - start_time:.6f} seconds")
     print("No third function, saving data")
     save_optimization_results(X, Y, Z, W_min, build_file_name(False))
     save_optimization_results(X, Y, Z, W_max, build_file_name(True))
 
 def compute_eigenvalues():
     start_time = time.perf_counter()
-    with open('data/sniep/sniep_max_values_4_8_8.json') as f:
+    with open(build_file_name(True)) as f:
         max_matrices = [build_matrix(x[2]['matrix']) for x in json.load(f)]
-    with open('data/sniep/sniep_min_values_4_8_8.json') as f:
+    with open(build_file_name(False)) as f:
         min_matrices = [build_matrix(x[2]['matrix']) for x in json.load(f)]
     print(f"Matrices loaded and built in {time.perf_counter() - start_time:.6f} seconds")
 
@@ -272,16 +272,10 @@ def compute_eigenvalues():
     min_eigvals = [[find_eigenvalues(x), x.tolist()] for x in min_matrices]
     print(f"Eigenvalues found in {time.perf_counter() - start_time:.6f} seconds")
 
-    save_results(max_eigvals, "data/sniep/sniep_max_eig_4_8_8.json")
-    save_results(min_eigvals, "data/sniep/sniep_min_eig_4_8_8.json")
+    save_results(max_eigvals, build_file_name(True, False))
+    save_results(min_eigvals, build_file_name(False, False))
     print("Data saved")
-    
-def make_plots():
-    return 0
-
 
 if __name__ == '__main__':
     optimize()
-    # compute_eigenvalues()
-    # make_plots()
-        
+    compute_eigenvalues()        
