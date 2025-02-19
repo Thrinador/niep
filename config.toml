@@ -10,7 +10,7 @@ points_dim = [2,2,2]
 # 0: Stochastic NIEP
 # 1: Doubly stochastic SNIEP
 # 2: SNIEP (entries between 0 and 1)
-type = 2
+type = 1
 # Name of file for data being saved. Note that an empty string will use the type default.
 save_location = ""
 # How many runs should the optimizer initial try to find the best result?

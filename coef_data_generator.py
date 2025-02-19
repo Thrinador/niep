@@ -262,9 +262,9 @@ def optimize():
 def compute_eigenvalues():
     start_time = time.perf_counter()
     with open(build_file_name(True)) as f:
-        max_matrices = [build_matrix(x[2]['matrix']) for x in json.load(f)]
+        max_matrices = [build_matrix(x[len(funcs_to_optimize)]['matrix']) for x in json.load(f)]
     with open(build_file_name(False)) as f:
-        min_matrices = [build_matrix(x[2]['matrix']) for x in json.load(f)]
+        min_matrices = [build_matrix(x[len(funcs_to_optimize)]['matrix']) for x in json.load(f)]
     print(f"Matrices loaded and built in {time.perf_counter() - start_time:.6f} seconds")
 
     start_time = time.perf_counter()
