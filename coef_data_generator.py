@@ -6,6 +6,7 @@ import time
 import json
 from pathos.pools import ProcessPool as Pool
 import dill
+from p_tqdm import p_map
 
 # Build config variables
 with open("config.toml", "rb") as f:
@@ -111,23 +112,23 @@ def convert_optimize_result_to_dict(result):
     }
     return result_dict
 
-def save_optimization_results(results_x, results_y, results_z=[], results_w=[], filename="optimization_results.json"):
-    """Saves a list of optimization results to a JSON file."""
-    if results_z == []:
-        results_y = [convert_optimize_result_to_dict(result) for result in results_y]
-        results = [res for res in zip(results_x, results_y)]
-        with open(filename, 'w') as f:
-                json.dump(results, f, indent=4)
-    if results_w == []:
-        results_z = [convert_optimize_result_to_dict(result) for result in results_z]
-        results = [res for res in zip(results_x, results_y, results_z)]
-        with open(filename, 'w') as f:
-                json.dump(results, f, indent=4)
-    else:
-        results_w = [convert_optimize_result_to_dict(result) for result in results_w]
-        results = [res for res in zip(results_x, results_y, results_z, results_w)]
-        with open(filename, 'w') as f:
-                json.dump(results, f, indent=4)
+def save_optimization_results_xy(results_x, results_y, filename="optimization_results.json"):
+    results_y = [convert_optimize_result_to_dict(result) for result in results_y]
+    results = [res for res in zip(results_x, results_y)]
+    with open(filename, 'w') as f:
+            json.dump(results, f, indent=4)
+
+def save_optimization_results_xyz(results_x, results_y, results_z, filename="optimization_results.json"):
+    results_z = [convert_optimize_result_to_dict(result) for result in results_z]
+    results = [res for res in zip(results_x, results_y, results_z)]
+    with open(filename, 'w') as f:
+            json.dump(results, f, indent=4)
+
+def save_optimization_results_xyzw(results_x, results_y, results_z, results_w, filename="optimization_results.json"):
+    results_w = [convert_optimize_result_to_dict(result) for result in results_w]
+    results = [res for res in zip(results_x, results_y, results_z, results_w)]
+    with open(filename, 'w') as f:
+            json.dump(results, f, indent=4)
 
 def build_file_name(is_max, is_coef=True):
     base = ""
@@ -204,27 +205,24 @@ def build_XYZ_mesh(X, Y, Z_min, Z_max):
 
 def optimize_first_func(constraint_loc=0, func_loc=1):
     x_values = np.linspace(0, n, points_dim[0])
-    with Pool() as pool:
-        min_y_values = pool.map(lambda x: optimize_func(func_loc, [[constraint_loc, x]]), x_values)
-        max_y_values = pool.map(lambda x: optimize_func(func_loc + n, [[constraint_loc+n, -x]]), x_values)
-        for max_y_val in max_y_values:
-            max_y_val.fun *= -1
+    min_y_values = p_map(lambda x: optimize_func(func_loc, [[constraint_loc, x]]), x_values)
+    max_y_values = p_map(lambda x: optimize_func(func_loc + n, [[constraint_loc+n, -x]]), x_values)
+    for max_y_val in max_y_values:
+        max_y_val.fun *= -1
     return x_values, min_y_values, max_y_values
 
 def optimize_second_func(X, Y, constraint_loc_1=0, constraint_loc_2=1, func_loc=2):
-    with Pool() as pool:
-        Z_min = pool.map(lambda point: optimize_func(func_loc, [[constraint_loc_1, point[0]], [constraint_loc_2, point[1]]]), zip(X,Y))
-        Z_max = pool.map(lambda point: optimize_func(func_loc+n, [[constraint_loc_1, point[0]], [constraint_loc_2, point[1]]]), zip(X,Y))
-        for max_z_val in Z_max:
+    Z_min = p_map(lambda point: optimize_func(func_loc, [[constraint_loc_1, point[0]], [constraint_loc_2, point[1]]]), list(zip(X,Y)))
+    Z_max = p_map(lambda point: optimize_func(func_loc, [[constraint_loc_1, point[0]], [constraint_loc_2, point[1]]]), list(zip(X,Y)))
+    for max_z_val in Z_max:
             max_z_val.fun *= -1
     return Z_min, Z_max
 
 def optimize_third_func(X, Y, Z, constraint_loc_1=0, constraint_loc_2=1, constraint_loc_3=2, func_loc=3):
-    with Pool() as pool:
-        W_min = pool.map(lambda point: optimize_func(func_loc, [[constraint_loc_1, point[0]], [constraint_loc_2, point[1]], [constraint_loc_3, point[2]]]), zip(X,Y,Z))
-        W_max = pool.map(lambda point: optimize_func(func_loc+n, [[constraint_loc_1, point[0]], [constraint_loc_2, point[1]], [constraint_loc_3, point[2]]]), zip(X,Y,Z))
-        for max_w_val in W_max:
-            max_w_val.fun *= -1
+    W_min = p_map(lambda point: optimize_func(func_loc, [[constraint_loc_1, point[0]], [constraint_loc_2, point[1]], [constraint_loc_3, point[2]]]), zip(X,Y,Z))
+    W_max = p_map(lambda point: optimize_func(func_loc+n, [[constraint_loc_1, point[0]], [constraint_loc_2, point[1]], [constraint_loc_3, point[2]]]), zip(X,Y,Z))
+    for max_w_val in W_max:
+        max_w_val.fun *= -1
     return W_min, W_max
 
 def optimize():
@@ -235,8 +233,8 @@ def optimize():
 
     if len(funcs_to_optimize) == 1:
         print("No second function, saving data")
-        save_optimization_results(x_values, min_y_values, filename=build_file_name(False))
-        save_optimization_results(x_values, max_y_values, filename=build_file_name(True))
+        save_optimization_results_xy(x_values, min_y_values, filename=build_file_name(False))
+        save_optimization_results_xy(x_values, max_y_values, filename=build_file_name(True))
         return 0
 
     print("Starting second func optimization.")
@@ -247,8 +245,9 @@ def optimize():
     
     if len(funcs_to_optimize) == 2:
         print("No third function, saving data")
-        save_optimization_results(X, Y, Z_min, build_file_name(False))
-        save_optimization_results(X, Y, Z_max, build_file_name(True))
+        save_optimization_results_xyz(X, Y, Z_min, build_file_name(False))
+        save_optimization_results_xyz(X, Y, Z_max, build_file_name(True))
+        return 0
 
     print("Starting third function optimization.")
     start_time = time.perf_counter()
@@ -256,8 +255,8 @@ def optimize():
     W_min, W_max = optimize_third_func(X,Y,Z)
     print(f"Third func optimized in {time.perf_counter() - start_time:.6f} seconds")
     print("No third function, saving data")
-    save_optimization_results(X, Y, Z, W_min, build_file_name(False))
-    save_optimization_results(X, Y, Z, W_max, build_file_name(True))
+    save_optimization_results_xyzw(X, Y, Z, W_min, build_file_name(False))
+    save_optimization_results_xyzw(X, Y, Z, W_max, build_file_name(True))
 
 def compute_eigenvalues():
     start_time = time.perf_counter()
