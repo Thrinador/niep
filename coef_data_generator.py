@@ -4,7 +4,6 @@ from math import comb
 import tomli
 import time
 import json
-from pathos.pools import ProcessPool as Pool
 import dill
 from p_tqdm import p_map
 
@@ -60,17 +59,6 @@ def run_function_with_const(loc, constraints):
                     maxiter=50000,
                     polish=False,
                     ) for _ in range(num_starts)]
-        
-        '''
-        results = [minimize(funcs_of_principal_minors[loc], 
-                    np.random.rand(num_variables), 
-                    bounds=[(0.0, 1.0)] * num_variables, 
-                    constraints=constraints, 
-                    method='trust-constr', 
-                    tol=tol, 
-                    options={'maxiter': 200, 'initial_constr_penalty': 100}) for _ in range(num_starts)]
-        '''
-
         best_result = results[0]
         is_false = False
         for result in results:
