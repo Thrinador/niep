@@ -6,6 +6,7 @@ import time
 import json
 import dill
 from p_tqdm import p_map
+from pathos.pools import ProcessPool as Pool
 
 # Build config variables
 with open("config.toml", "rb") as f:
@@ -49,35 +50,20 @@ def build_matrix_constraints():
         return None
 
 def run_function_with_const(loc, constraints):
-    count = 0
-    best_result = None
-    num_starts = initial_runs
-    while count < 10:
-        results = [differential_evolution(funcs_of_principal_minors[loc], 
+    attempts = 100
+    last_result = None
+    for _ in range(attempts):
+        result = differential_evolution(funcs_of_principal_minors[loc], 
                     bounds=[(0.0, 1.0)] * num_variables, 
                     constraints=constraints, 
-                    maxiter=50000,
+                    maxiter=80000,
                     polish=False,
-                    ) for _ in range(num_starts)]
-        best_result = results[0]
-        is_false = False
-        for result in results:
-            if result.success:
-                is_false = True
-                best_result = result
-                break
-
-        if is_false:
-            for result in results:
-                if result.fun <= best_result.fun and result.success:
-                    best_result = result
-            return best_result
-        else:
-            count += 1
-            num_starts = subsequent_runs
-
-    print(count)
-    return best_result
+                    )
+        if result.success:
+            return result
+        last_result = result
+    print(attempts)
+    return last_result
 
 def optimize_func(loc, eqs = []):
     if len(eqs) == 0:
@@ -192,25 +178,31 @@ def build_XYZ_mesh(X, Y, Z_min, Z_max):
             np.concatenate(Z_mesh))
 
 def optimize_first_func(constraint_loc=0, func_loc=1):
-    x_values = np.linspace(0, n, points_dim[0])
-    min_y_values = p_map(lambda x: optimize_func(func_loc, [[constraint_loc, x]]), x_values)
-    max_y_values = p_map(lambda x: optimize_func(func_loc + n, [[constraint_loc+n, -x]]), x_values)
-    for max_y_val in max_y_values:
-        max_y_val.fun *= -1
+    with Pool() as pool:
+        x_values = np.linspace(0, n, points_dim[0])
+        min_y_values = pool.map(lambda x: optimize_func(func_loc, [[constraint_loc, x]]), x_values)
+        print("Finished min")
+        max_y_values = pool.map(lambda x: optimize_func(func_loc + n, [[constraint_loc+n, -x]]), x_values)
+        for max_y_val in max_y_values:
+            max_y_val.fun *= -1
     return x_values, min_y_values, max_y_values
 
 def optimize_second_func(X, Y, constraint_loc_1=0, constraint_loc_2=1, func_loc=2):
-    Z_min = p_map(lambda point: optimize_func(func_loc, [[constraint_loc_1, point[0]], [constraint_loc_2, point[1]]]), list(zip(X,Y)))
-    Z_max = p_map(lambda point: optimize_func(func_loc, [[constraint_loc_1, point[0]], [constraint_loc_2, point[1]]]), list(zip(X,Y)))
-    for max_z_val in Z_max:
-            max_z_val.fun *= -1
+    with Pool() as pool:
+        Z_min = pool.map(lambda point: optimize_func(func_loc, [[constraint_loc_1, point[0]], [constraint_loc_2, point[1]]]), zip(X,Y))
+        print("Finished min")
+        Z_max = pool.map(lambda point: optimize_func(func_loc, [[constraint_loc_1, point[0]], [constraint_loc_2, point[1]]]), zip(X,Y))
+        for max_z_val in Z_max:
+                max_z_val.fun *= -1
     return Z_min, Z_max
 
 def optimize_third_func(X, Y, Z, constraint_loc_1=0, constraint_loc_2=1, constraint_loc_3=2, func_loc=3):
-    W_min = p_map(lambda point: optimize_func(func_loc, [[constraint_loc_1, point[0]], [constraint_loc_2, point[1]], [constraint_loc_3, point[2]]]), zip(X,Y,Z))
-    W_max = p_map(lambda point: optimize_func(func_loc+n, [[constraint_loc_1, point[0]], [constraint_loc_2, point[1]], [constraint_loc_3, point[2]]]), zip(X,Y,Z))
-    for max_w_val in W_max:
-        max_w_val.fun *= -1
+    with Pool() as pool:
+        W_min = pool.map(lambda point: optimize_func(func_loc, [[constraint_loc_1, point[0]], [constraint_loc_2, point[1]], [constraint_loc_3, point[2]]]), zip(X,Y,Z))
+        print("Finished min")
+        W_max = pool.map(lambda point: optimize_func(func_loc+n, [[constraint_loc_1, point[0]], [constraint_loc_2, point[1]], [constraint_loc_3, point[2]]]), zip(X,Y,Z))
+        for max_w_val in W_max:
+            max_w_val.fun *= -1
     return W_min, W_max
 
 def optimize():
