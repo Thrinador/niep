@@ -9,11 +9,6 @@ from pathos.pools import ProcessPool as Pool
 
 import file_utils
 
-# Constants for optimization (could be moved to config if they change often)
-DE_ATTEMPTS = 10
-DE_MAXITER = 10000
-DE_POPSIZE = 30
-
 def load_optimization_functions(config):
     """Dynamically loads minors, jacobians, and hessians based on config['n']."""
     try:
@@ -82,25 +77,54 @@ def build_matrix_constraints(config):
 def run_function_with_const(loc, constraints, funcs_minors, config, func_index_for_log="unknown", run_count=0):
     """Runs differential evolution. Needs minor functions list and config."""
     try:
-        num_variables = comb(config['global_data']['n'], 2)
+        n = config['global_data']['n']
+        num_variables = comb(n, 2)
+        # Get optimizer params from config, providing defaults
+        opt_params = config.get('optimizer_params', {}) # Get section or empty dict
+        g_data = config.get('global_data', {})
+
+        tol = opt_params.get('tol', 1e-5) # Existing
+        atol = opt_params.get('atol', g_data.get('atol', 1e-9)) # Check both sections
+        maxiter = opt_params.get('maxiter', g_data.get('maxiter', 5000))
+
+        popsize_k = opt_params.get('popsize_k', g_data.get('popsize_multiplier', 7))
+        # Ensure popsize is at least a minimum value, e.g., 10 or 2*D
+        popsize = max(10, int(popsize_k * num_variables))
+
+        # Get other params or use scipy defaults by omitting them
+        mutation = tuple(opt_params.get('mutation', (0.5, 1.0))) # Ensure tuple
+        recombination = opt_params.get('recombination', 0.7)
+        strategy = opt_params.get('strategy', 'best1bin')
+        init_method = opt_params.get('init', g_data.get('init', 'halton')) # Allow overriding default
+        attempts = opt_params.get('attempts', 5)
+
+        logging.debug(f"DE Params: popsize={popsize}, tol={tol}, atol={atol}, maxiter={maxiter}, mutation={mutation}, recombination={recombination}, strategy={strategy}, init={init_method}")
+
     except KeyError as e:
-        logging.error(f"Config missing key for run_function_with_const: {e}")
+        logging.error(f"Config missing key for run_function_with_const setup: {e}")
         return None
+    except Exception as e:
+            logging.exception(f"Error setting up DE parameters:")
+            return None
+
 
     last_result = None
     func_name = f"S{loc}" if loc < config['global_data']['n'] else f"-S{loc-config['global_data']['n']+1}"
     logging.debug(f"Starting run_function_with_const for {func_name} (loc={loc}, run={run_count})")
 
-    for i in range(DE_ATTEMPTS):
+    for i in range(attempts):
         try:
             result = differential_evolution(
-                        funcs_minors[loc], # Pass the function list
+                        funcs_minors[loc],
                         bounds=[(0.0, 1.0)] * num_variables,
                         constraints=constraints,
                         polish=True,
-                        init='halton',
-                        maxiter=DE_MAXITER,
-                        popsize=DE_POPSIZE,
+                        init=init_method,
+                        strategy=strategy,
+                        maxiter=maxiter,
+                        popsize=popsize,
+                        atol=atol,
+                        tol=tol,
                         )
             if result.success:
                 logging.info(f"Optimization successful for run={run_count} on attempt {i+1}")
@@ -114,7 +138,7 @@ def run_function_with_const(loc, constraints, funcs_minors, config, func_index_f
             logging.exception(f"Error in differential_evolution attempt {i+1} for {func_name}:")
             last_result = None # Reset result on error
 
-    logging.error(f"Optimization failed after {DE_ATTEMPTS} attempts for run={run_count}. Returning last result.")
+    logging.error(f"Optimization failed after {attempts} attempts for run={run_count}. Returning last result.")
     return last_result
 
 

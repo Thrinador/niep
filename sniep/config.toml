@@ -1,13 +1,21 @@
 [global_data]
 # n represents the size of matrices you are working with.
 n = 5
-tol = 1e-2
+tol = 1e-1
 # points_dim represents the dimension of coefficient points desired.
 # To get the full dimension of a given n value there needs to be n-2 entries.
-points_dim = [3, 3, 3]
-# If the initial run fails how many subsequence runs should it try?
-attempts = 10
+points_dim = [1, 2, 2]
 # funcs_to_optimize is an array that tries to minimize functions in order given.
 # Right now the first function used is always the trace. So 2 entries in the array will
 # give 3d data. Right now this is restricted to 3d data.
 funcs_to_optimize = [1, 2, 3, 4]
+
+[optimizer_params]
+popsize_k = 7
+recombination = 0.7
+strategy = 'best1bin'
+atol = 1e-9
+tol = 1e-3
+maxiter = 10000
+popsize_multiplier = 7 # k value for popsize = k * num_vars
+attempts = 10

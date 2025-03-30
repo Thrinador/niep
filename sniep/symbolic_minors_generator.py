@@ -1,12 +1,9 @@
-# script_generate_minor_hessian_functions_general.py
-
 import sympy
 import itertools
 import os
 import textwrap
 import time
-import numpy as np # Needed for generated Hessian code
-import traceback   # For detailed error info
+import numpy as np
 
 # --- Function to Format Expression Strings ---
 def format_expr_str(expr):
