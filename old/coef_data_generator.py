@@ -5,7 +5,6 @@ import tomli
 import time
 import json
 import dill
-from p_tqdm import p_map
 from pathos.pools import ProcessPool as Pool
 
 # Build config variables
@@ -49,17 +48,22 @@ def build_matrix_constraints():
     else:
         return None
 
+def simple_func(x):
+    return np.sum(x**2)
+
 def run_function_with_const(loc, constraints):
     attempts = 100
     last_result = None
     for _ in range(attempts):
+        print("Starting attempt")
         result = differential_evolution(funcs_of_principal_minors[loc], 
                     bounds=[(0.0, 1.0)] * num_variables, 
-                    constraints=constraints, 
-                    maxiter=80000,
                     polish=False,
                     )
+        print("Finished attempt")
+        return 
         if result.success:
+            print(attempts)
             return result
         last_result = result
     print(attempts)
