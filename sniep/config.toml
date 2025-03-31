@@ -1,14 +1,14 @@
 [global_data]
 # n represents the size of matrices you are working with.
-n = 5
+n = 3
 tol = 1e-1
 # points_dim represents the dimension of coefficient points desired.
 # To get the full dimension of a given n value there needs to be n-2 entries.
-points_dim = [1, 2, 2]
+points_dim = [200, 2, 2]
 # funcs_to_optimize is an array that tries to minimize functions in order given.
 # Right now the first function used is always the trace. So 2 entries in the array will
 # give 3d data. Right now this is restricted to 3d data.
-funcs_to_optimize = [1, 2, 3, 4]
+funcs_to_optimize = [1, 2]
 
 [optimizer_params]
 popsize_k = 7
