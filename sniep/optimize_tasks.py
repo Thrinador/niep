@@ -285,27 +285,21 @@ def optimize_first_func(funcs_minors, funcs_jacobians, config, constraint_func_i
     min_opt_loc = optimize_func_idx
     max_opt_loc = optimize_func_idx + n
 
-    # Prepare arguments for ALL tasks (min and max interleaved)
     all_args = []
     for i, x_val in enumerate(x_values):
         constraints = [[constraint_func_idx, x_val]]
-        # Append MIN task args
         all_args.append((min_opt_loc, funcs_minors, funcs_jacobians, config, constraints, i*2))
-        # Append MAX task args
         all_args.append((max_opt_loc, funcs_minors, funcs_jacobians, config, constraints, i*2+1))
 
     all_results = []
     num_tasks = len(all_args)
     logging.info(f"Starting parallel optimization Stage 1 ({num_tasks} tasks: min/max pairs)...")
     try:
-        # Use 'with Pool() as pool:' which handles shutdown automatically
         with Pool() as pool:
-            # Execute all tasks in one map call
-            all_results = pool.map(_optimize_func_parallel_wrapper, all_args)
+            all_results = list(pool.imap(_optimize_func_parallel_wrapper, all_args, chunksize=1))
         logging.info(f"Finished Stage 1 parallel execution.")
     except Exception as e:
         logging.exception("Error during parallel processing in optimize_first_func:")
-        # all_results might be empty or partially filled
 
     # Process the combined results list, separating min and max
     min_y_results = []
@@ -351,9 +345,7 @@ def optimize_second_func(X, Y, funcs_minors, funcs_jacobians, config, constraint
     all_args = []
     for i in range(total_points):
         constraints = [[constraint_loc_1, X[i]], [constraint_loc_2, Y[i]]]
-        # Append MIN task args
         all_args.append((min_opt_loc, funcs_minors, funcs_jacobians, config, constraints, i*2))
-        # Append MAX task args
         all_args.append((max_opt_loc, funcs_minors, funcs_jacobians, config, constraints, i*2+1))
 
     all_results = []
@@ -361,7 +353,7 @@ def optimize_second_func(X, Y, funcs_minors, funcs_jacobians, config, constraint
     logging.info(f"Starting parallel optimization Stage 2 ({num_tasks} tasks: min/max pairs for {total_points} points)...")
     try:
         with Pool() as pool:
-            all_results = pool.map(_optimize_func_parallel_wrapper, all_args)
+            all_results = list(pool.imap(_optimize_func_parallel_wrapper, all_args, chunksize=1))
         logging.info(f"Finished Stage 2 parallel execution.")
     except Exception as e:
         logging.exception("Error during parallel processing in optimize_second_func:")
@@ -407,9 +399,7 @@ def optimize_third_func(X, Y, Z, funcs_minors, funcs_jacobians, config, constrai
     all_args = []
     for i in range(total_points):
         constraints = [[constraint_loc_1, X[i]], [constraint_loc_2, Y[i]], [constraint_loc_3, Z[i]]]
-        # Append MIN task args
         all_args.append((min_opt_loc, funcs_minors, funcs_jacobians, config, constraints, i*2))
-        # Append MAX task args
         all_args.append((max_opt_loc, funcs_minors, funcs_jacobians, config, constraints, i*2+1))
 
     all_results = []
@@ -417,7 +407,7 @@ def optimize_third_func(X, Y, Z, funcs_minors, funcs_jacobians, config, constrai
     logging.info(f"Starting parallel optimization Stage 3 ({num_tasks} tasks: min/max pairs for {total_points} points)...")
     try:
         with Pool() as pool:
-            all_results = pool.map(_optimize_func_parallel_wrapper, all_args)
+            all_results = list(pool.imap(_optimize_func_parallel_wrapper, all_args, chunksize=1))
         logging.info(f"Finished Stage 3 parallel execution.")
     except Exception as e:
         logging.exception("Error during parallel processing in optimize_third_func:")
