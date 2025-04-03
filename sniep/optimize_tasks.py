@@ -98,8 +98,6 @@ def run_function_with_const(loc, constraints, funcs_minors, config, func_index_f
         init_method = opt_params.get('init', g_data.get('init', 'halton')) # Allow overriding default
         attempts = opt_params.get('attempts', 5)
 
-        logging.debug(f"DE Params: popsize={popsize}, tol={tol}, atol={atol}, maxiter={maxiter}, mutation={mutation}, recombination={recombination}, strategy={strategy}, init={init_method}")
-
     except KeyError as e:
         logging.error(f"Config missing key for run_function_with_const setup: {e}")
         return None
@@ -173,10 +171,8 @@ def optimize_func(loc, funcs_minors, funcs_jacobians, config, eqs=[], count=0):
     linear_constraints = build_matrix_constraints(config)
     if linear_constraints:
         constraints_list.append(linear_constraints)
-        logging.debug(f"Added LinearConstraint (row sums) for run {count}.")
     else:
         logging.error("Failed to build linear constraints, proceeding without them.")
-        # Decide whether to proceed or return error
 
     return run_function_with_const(loc, constraints_list, funcs_minors, config, func_index_for_log=func_name, run_count=count)
 

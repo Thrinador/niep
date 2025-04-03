@@ -210,7 +210,7 @@ def {hess_func_name}(x_vec):
 # --- Main Script Logic ---
 if __name__ == "__main__":
     # --- Configuration ---
-    N_TARGET = 5
+    N_TARGET = 6
     K_TARGETS = list(range(1, N_TARGET + 1))
     output_filename = f"symbolic_minors_n{N_TARGET}.py"
     # --- End Configuration ---
