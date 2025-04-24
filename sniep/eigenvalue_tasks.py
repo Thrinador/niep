@@ -120,7 +120,7 @@ def run_eigenvalue_computation(config):
                 skipped_count += 1
                 continue
 
-            eigvals_serializable = [[e.real, e.imag] for e in eigvals]
+            eigvals_serializable = [e for e in eigvals]
 
             # Create labeled dictionary, include original constraints/optimized value
             eigenvalue_dict = {
