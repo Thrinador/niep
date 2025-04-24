@@ -155,7 +155,6 @@ def run_function_with_const(
     last_result = None
     for i in range(attempts):
         x0 = np.random.rand(num_variables)
-        logging.debug(f"Starting minimize attempt {i+1}/{attempts} for {func_name} (run={run_count}) with new x0.")
 
         try:
             result = minimize(
@@ -174,12 +173,13 @@ def run_function_with_const(
             last_result = result
 
             if result.success:
-                logging.info(f"Optimization successful for {func_name} run={run_count} on attempt {i+1}.")
+                if run_count % 103 == 0: # Reduce the number of lines printed on larger runs
+                    logging.info(f"Optimization successful for {func_name} run={run_count} on attempt {i+1}.")
                 logging.debug(f"Success Result:\n{result}")
                 return result
-            else:
+            # else:
                 # SLSQP failure messages can be informative
-                logging.debug(f"Failure Result (Attempt {i+1}):\n{result}")
+                # logging.debug(f"Failure Result (Attempt {i+1}):\n{result}")
 
         except (ValueError, TypeError) as e:
              logging.exception(f"Error during minimize attempt {i+1} for {func_name} run={run_count}: {e}. Check function/jacobian.")
@@ -210,17 +210,9 @@ def optimize_func(loc, funcs_minors, funcs_jacobians, funcs_hessians, config, eq
     if eqs:
         for i, eq in enumerate(eqs):
             eq_func_idx, eq_target_val = eq[0], eq[1]
-            logging.debug(f"Adding NonlinearConstraint for S{eq_func_idx+1 if eq_func_idx < n else -(eq_func_idx-n+1)} = {eq_target_val:.4f} +/- {tol:.1e}")
-
             if 0 <= eq_func_idx < len(funcs_minors):
                 nlc_func = lambda x, idx=eq_func_idx: funcs_minors[idx](x)
                 nlc_jac = funcs_jacobians[eq_func_idx] if funcs_jacobians and 0 <= eq_func_idx < len(funcs_jacobians) else '2-point'
-
-                if not callable(nlc_jac):
-                     logging.warning(f"Jacobian for constraint index {eq_func_idx} invalid or unavailable. Using '2-point' finite difference.")
-                     nlc_jac = '2-point'
-                else:
-                     logging.debug(f"Using provided Jacobian for constraint {eq_func_idx}.")
 
                 constraints_list.append(NonlinearConstraint(
                     nlc_func,
