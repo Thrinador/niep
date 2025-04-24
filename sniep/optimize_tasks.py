@@ -235,7 +235,6 @@ def optimize_func(loc, funcs_minors, funcs_jacobians, funcs_hessians, config, eq
     linear_constraints = build_matrix_constraints(config)
     if linear_constraints:
         constraints_list.append(linear_constraints)
-        logging.debug(f"Added LinearConstraint (row sums) for run {count}.")
     else:
         logging.error("Failed to build linear matrix constraints for run {count}! Optimization might fail or give invalid results.")
 
