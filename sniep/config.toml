@@ -9,7 +9,6 @@ points_dim = [100, 100]
 # Right now the first function used is always the trace. So 2 entries in the array will
 # give 3d data. Right now this is restricted to 3d data.
 funcs_to_optimize = [1, 2, 3]
-funcs_to_optimize = [1, 2, 3]
 
 [optimizer_params]
 popsize_k = 7
