@@ -58,7 +58,13 @@ def find_eigenvalues(matrix, config):
     try:
         eigvals = np.linalg.eigvals(matrix)
         eigvals_list = eigvals.tolist()
-        eigvals_list.sort(key=lambda x: x.real, reverse=True) # Sort by real part
+
+        real_list = []
+        for eig in eigvals_list:
+            real_list.append(eig.real)
+        eigvals_list = real_list
+
+        eigvals_list.sort(key=lambda x: x, reverse=True) # Sort by real part
 
         if not eigvals_list:
              logging.warning("Eigenvalue calculation resulted in an empty list.")
