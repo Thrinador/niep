@@ -81,51 +81,74 @@ def load_config(config_path="config.toml"):
 
 
 if __name__ == '__main__':
-    print("Script execution started.") # Before logging
+    print("Script execution started.")
     main_start_time = time.perf_counter()
 
-    # 1. Load Configuration
     config = load_config("config.toml")
-    if config is None:
-        sys.exit(1) # Exit if config fails
-
-    # 2. Setup Logging and dump config to log
-    if not setup_logging(config):
-         sys.exit(1) # Exit if logging setup fails
+    if config is None: sys.exit(1)
+    if not setup_logging(config): sys.exit(1)
 
     try:
-        # Use json.dumps for pretty printing the config dictionary
-        # Sort keys for consistent order in logs
         config_str = json.dumps(config, indent=4, sort_keys=True)
-        logging.debug("--- Configuration Loaded ---")
-        # Log the formatted string. The newline helps separate it in the log file.
         logging.debug(f"Full configuration details:\n{config_str}")
-        logging.debug("--------------------------")
     except Exception as e:
-        # Log an error if formatting/logging the config fails, but don't necessarily exit
         logging.error(f"Could not format or log configuration details: {e}")
 
-    # 3. Run Optimization Tasks
+    # --- Modified Workflow ---
+    optimization_results = None
+    final_results = None
+    save_status = False
+
+    # 1. Run Optimization Tasks
     logging.info("===== Starting Optimization Phase =====")
-    opt_status = optimize_tasks.run_optimization(config) # Returns 0 for success, 1 for failure
+    optimization_results = optimize_tasks.run_optimization(config) # Returns list or None
 
-    # 4. Run Eigenvalue Tasks (only if optimization succeeded)
-    eig_status = 1 # Default to failure
-    if opt_status == 0:
+    # 2. Run Eigenvalue Tasks (if optimization succeeded)
+    if optimization_results is not None:
         logging.info("===== Starting Eigenvalue Computation Phase =====")
-        eig_status = eigenvalue_tasks.run_eigenvalue_computation(config) # Returns 0 for success, 1 for failure
+        # Pass optimization results list directly
+        final_results = eigenvalue_tasks.run_eigenvalue_computation(config, optimization_results) # Returns updated list or None
     else:
-        logging.warning("Skipping eigenvalue computation due to optimization failure or partial results.")
+        logging.warning("Skipping eigenvalue computation due to optimization failure or no results.")
 
-    # 5. Report Final Status
+    # 3. Save Final Results (if eigenvalue computation succeeded)
+    if final_results is not None:
+        logging.info("===== Saving Final Combined Results =====")
+        output_filename = file_utils.build_file_name(config) # Get the single filename
+        if output_filename:
+            save_status = file_utils.save_results(config, final_results, output_filename)
+            if not save_status:
+                 logging.error(f"Failed to save final results to {output_filename}")
+        else:
+            logging.error("Failed to generate output filename. Cannot save results.")
+            save_status = False # Explicitly mark as failure
+    elif optimization_results is not None:
+         # Optimization succeeded, but eigenvalues failed or produced nothing
+         logging.error("Eigenvalue computation failed or produced no results. No final file saved.")
+         save_status = False
+    else:
+        # Optimization failed
+        logging.error("Optimization failed. No final file saved.")
+        save_status = False
+
+    # 4. Report Final Status
     main_end_time = time.perf_counter()
     total_time = main_end_time - main_start_time
     logging.info("===== Script Execution Finished =====")
-    if opt_status == 0 and eig_status == 0:
-        logging.info(f"All tasks completed successfully in {total_time:.4f} seconds.")
+
+    # Determine overall success based on final results being generated AND saved
+    if final_results is not None and save_status:
+        logging.info(f"All tasks completed and results saved successfully in {total_time:.4f} seconds.")
         sys.exit(0) # Success
     else:
-        logging.error(f"Script finished with errors in {total_time:.4f} seconds.")
-        logging.error(f"Optimization Status: {'Success' if opt_status == 0 else 'Failure/Partial'}")
-        logging.error(f"Eigenvalue Status: {'Success' if eig_status == 0 else ('Failure' if opt_status == 0 else 'Skipped')}")
+        logging.error(f"Script finished with errors or incomplete results in {total_time:.4f} seconds.")
+        if optimization_results is None:
+             logging.error("Optimization Status: Failed")
+        elif final_results is None:
+             logging.error("Optimization Status: Succeeded")
+             logging.error("Eigenvalue Status: Failed or No Results")
+        elif not save_status:
+             logging.error("Optimization Status: Succeeded")
+             logging.error("Eigenvalue Status: Succeeded")
+             logging.error("Save Status: Failed")
         sys.exit(1) # Failure

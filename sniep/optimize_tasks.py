@@ -14,18 +14,17 @@ from pathos.pools import ProcessPool as Pool
 import file_utils
 
 def load_optimization_functions(config):
-    """Dynamically loads minors, jacobians, and hessians based on config['n']."""
+    """Dynamically loads minors and jacobians based on config['n']."""
     try:
         n = config['global_data']['n']
         module_name = f"symbolic_minors_n{n}"
         logging.info(f"Attempting to load functions from module: {module_name}")
         symbolic_module = importlib.import_module(module_name)
 
-        funcs = {'minors': [], 'jacobians': [], 'hessians': []}
+        funcs = {'minors': [], 'jacobians': []}
         func_types = {
             'minors': (f"calculate_S{{k}}_n{n}", lambda f: (lambda x, pf=f: -pf(x))),
             'jacobians': (f"calculate_S{{k}}_n{n}_jacobian", lambda f: (lambda x, pf=f: -np.array(pf(x)))),
-            'hessians': (f"calculate_S{{k}}_n{n}_hessian", lambda f: (lambda x, pf=f: -np.array(pf(x))))
         }
 
         for type_key, (name_pattern, neg_wrapper) in func_types.items():
@@ -35,24 +34,13 @@ def load_optimization_functions(config):
                 if hasattr(symbolic_module, func_name):
                     positive_funcs.append(getattr(symbolic_module, func_name))
                 else:
-                    if type_key == 'hessians':
-                         logging.warning(f"Optional Hessian function {func_name} not found in {module_name}.py")
-                    else:
-                         logging.error(f"Required function {func_name} not found in {module_name}.py")
-                         raise ImportError(f"Function {func_name} not found.")
+                    logging.error(f"Required function {func_name} not found in {module_name}.py")
+                    raise ImportError(f"Function {func_name} not found.")
 
             # Apply negation wrapper only if positive functions were found
             negative_funcs = [neg_wrapper(pf) for pf in positive_funcs if pf is not None] if positive_funcs else []
-
-            # Store positive funcs first, then negatives
-            # Handle case where hessians might be missing
-            if type_key == 'hessians' and not any(positive_funcs):
-                 # Fill hessians list with None placeholders if none were found
-                 num_expected = 2 * n
-                 funcs[type_key] = [None] * num_expected
-                 logging.warning(f"No Hessian functions loaded for n={n}. 'trust-constr' might fall back or fail if Hessian is required.")
-            else:
-                 funcs[type_key] = positive_funcs + negative_funcs
+            
+            funcs[type_key] = positive_funcs + negative_funcs
 
             logging.info(f"Successfully loaded {len(positive_funcs)} positive and {len(negative_funcs)} negative {type_key} functions.")
 
@@ -67,7 +55,7 @@ def load_optimization_functions(config):
                     funcs[type_key].append(None)
 
 
-        return funcs['minors'], funcs['jacobians'], funcs['hessians']
+        return funcs['minors'], funcs['jacobians']
 
     except ImportError as e:
         logging.error(f"Failed to import module or function: {e}")
@@ -173,7 +161,7 @@ def run_function_with_const(
             last_result = result
 
             if result.success:
-                if run_count % 103 == 0: # Reduce the number of lines printed on larger runs
+                if run_count % 103 == 0:
                     logging.info(f"Optimization successful for {func_name} run={run_count} on attempt {i+1}.")
                 logging.debug(f"Success Result:\n{result}")
                 return result
@@ -194,7 +182,7 @@ def run_function_with_const(
     return last_result
 
 
-def optimize_func(loc, funcs_minors, funcs_jacobians, funcs_hessians, config, eqs=[], count=0):
+def optimize_func(loc, funcs_minors, funcs_jacobians, config, eqs=[], count=0):
     """Wrapper to set up constraints and call the optimizer."""
     try:
         n = config['global_data']['n']
@@ -345,13 +333,10 @@ def build_XYZ_mesh(X, Y, Z_min_results, Z_max_results, config):
 
 # Modified Wrapper for parallel execution of optimize_func
 def _optimize_func_parallel_wrapper(args):
-    # Unpack hessians as well
-    loc, funcs_minors, funcs_jacobians, funcs_hessians, config, eqs, count = args
-    # Pass hessians to optimize_func
-    return optimize_func(loc, funcs_minors, funcs_jacobians, funcs_hessians, config, eqs, count)
+    loc, funcs_minors, funcs_jacobians, config, eqs, count = args
+    return optimize_func(loc, funcs_minors, funcs_jacobians, config, eqs, count)
 
-# Modified to include hessians in args
-def optimize_first_func(funcs_minors, funcs_jacobians, funcs_hessians, config, constraint_func_idx, optimize_func_idx):
+def optimize_first_func(funcs_minors, funcs_jacobians, config, constraint_func_idx, optimize_func_idx):
     """Optimizes S_k2 constrained by S_k1, running min/max concurrently."""
     try:
         n = config['global_data']['n']
@@ -382,13 +367,11 @@ def optimize_first_func(funcs_minors, funcs_jacobians, funcs_hessians, config, c
     min_opt_loc = optimize_func_idx
     max_opt_loc = optimize_func_idx + n
 
-    # Pack arguments including funcs_hessians
     all_args = []
     for i, x_val in enumerate(x_values):
         constraints = [[constraint_func_idx, x_val]]
-        # Args: loc, funcs_minors, funcs_jacobians, funcs_hessians, config, eqs, count
-        all_args.append((min_opt_loc, funcs_minors, funcs_jacobians, funcs_hessians, config, constraints, i*2))
-        all_args.append((max_opt_loc, funcs_minors, funcs_jacobians, funcs_hessians, config, constraints, i*2+1))
+        all_args.append((min_opt_loc, funcs_minors, funcs_jacobians, config, constraints, i*2))
+        all_args.append((max_opt_loc, funcs_minors, funcs_jacobians, config, constraints, i*2+1))
 
     all_results = []
     num_tasks = len(all_args)
@@ -434,8 +417,7 @@ def optimize_first_func(funcs_minors, funcs_jacobians, funcs_hessians, config, c
 
     return x_values, min_y_results, max_y_results
 
-# Modified to include hessians in args
-def optimize_second_func(X, Y, funcs_minors, funcs_jacobians, funcs_hessians, config, constraint_loc_1, constraint_loc_2, func_loc):
+def optimize_second_func(X, Y, funcs_minors, funcs_jacobians, config, constraint_loc_1, constraint_loc_2, func_loc):
     """Optimizes S_k3 constrained by S_k1, S_k2, running min/max concurrently."""
     try:
          n = config['global_data']['n']
@@ -456,13 +438,12 @@ def optimize_second_func(X, Y, funcs_minors, funcs_jacobians, funcs_hessians, co
     min_opt_loc = func_loc
     max_opt_loc = func_loc + n
 
-    # Prepare arguments for ALL tasks, including hessians
     all_args = []
     for i in range(total_points):
         constraints = [[constraint_loc_1, X[i]], [constraint_loc_2, Y[i]]]
-        # Args: loc, funcs_minors, funcs_jacobians, funcs_hessians, config, eqs, count
-        all_args.append((min_opt_loc, funcs_minors, funcs_jacobians, funcs_hessians, config, constraints, i*2))
-        all_args.append((max_opt_loc, funcs_minors, funcs_jacobians, funcs_hessians, config, constraints, i*2+1))
+        # Args: loc, funcs_minors, funcs_jacobians, config, eqs, count
+        all_args.append((min_opt_loc, funcs_minors, funcs_jacobians, config, constraints, i*2))
+        all_args.append((max_opt_loc, funcs_minors, funcs_jacobians, config, constraints, i*2+1))
 
     all_results = []
     num_tasks = len(all_args)
@@ -503,8 +484,7 @@ def optimize_second_func(X, Y, funcs_minors, funcs_jacobians, funcs_hessians, co
 
     return Z_min, Z_max
 
-# Modified to include hessians in args
-def optimize_third_func(X, Y, Z, funcs_minors, funcs_jacobians, funcs_hessians, config, constraint_loc_1, constraint_loc_2, constraint_loc_3, func_loc):
+def optimize_third_func(X, Y, Z, funcs_minors, funcs_jacobians, config, constraint_loc_1, constraint_loc_2, constraint_loc_3, func_loc):
     """Optimizes S_k4 constrained by S_k1, S_k2, S_k3, running min/max concurrently."""
     try:
          n = config['global_data']['n']
@@ -527,8 +507,8 @@ def optimize_third_func(X, Y, Z, funcs_minors, funcs_jacobians, funcs_hessians, 
     all_args = []
     for i in range(total_points):
         constraints = [[constraint_loc_1, X[i]], [constraint_loc_2, Y[i]], [constraint_loc_3, Z[i]]]
-        all_args.append((min_opt_loc, funcs_minors, funcs_jacobians, funcs_hessians, config, constraints, i*2))
-        all_args.append((max_opt_loc, funcs_minors, funcs_jacobians, funcs_hessians, config, constraints, i*2+1))
+        all_args.append((min_opt_loc, funcs_minors, funcs_jacobians, config, constraints, i*2))
+        all_args.append((max_opt_loc, funcs_minors, funcs_jacobians, config, constraints, i*2+1))
 
     all_results = []
     num_tasks = len(all_args)
@@ -570,71 +550,63 @@ def optimize_third_func(X, Y, Z, funcs_minors, funcs_jacobians, funcs_hessians, 
 
 
 def process_optimization_result(result, result_type, constraint_labels, optimized_label):
-    """Helper to create the labeled dictionary from an optimization result."""
-    # Check if result is None or lacks necessary attributes
-    if result is None or not hasattr(result, 'success') or not hasattr(result, 'fun') or result.fun is None:
-        logging.warning(f"Skipping invalid/incomplete optimization result during processing for {result_type} {optimized_label} with constraints {constraint_labels}.")
+    """
+    Helper to create the labeled dictionary from a SUCCESSFUL optimization result.
+    Combines constraints/optimized value into 'coefficients'.
+    Assumes result.success is True.
+    Rounding is NOT done here.
+    """
+
+    if result is None or not hasattr(result, 'fun') or result.fun is None:
+        logging.error(f"process_optimization_result received an invalid object unexpectedly: {result}")
         return None
 
+    coefficients = []
+    sorted_constraint_keys = sorted(constraint_labels.keys())
+    for key in sorted_constraint_keys:
+         coefficients.append(constraint_labels[key])
+
     optimized_value = result.fun
-    # Correct max value (we minimize the negative function for maximization)
     if result_type == "max":
         optimized_value *= -1
+    coefficients.append(optimized_value)
 
-    # Check for solution vector 'x'
     if not hasattr(result, 'x') or result.x is None:
-         logging.warning(f"Result object missing valid 'x' attribute for {result_type} {optimized_label}. Cannot save matrix.")
+         logging.warning(f"Successful result object missing valid 'x' attribute for {result_type} {optimized_label}. Matrix will be null.")
          matrix_data = None
     else:
-         # Ensure 'x' is converted to a list for JSON serialization
          matrix_data = result.x.tolist() if isinstance(result.x, np.ndarray) else list(result.x)
-
-    # Get message, ensuring it's a string
-    message = str(getattr(result, 'message', 'No message provided'))
-
 
     data_dict = {
         "type": result_type,
-        **constraint_labels, # Unpack constraint key-value pairs
-        optimized_label: optimized_value,
-        "success": bool(result.success), # Ensure boolean
-        "message": message,
-        "matrix": matrix_data # Can be None if 'x' was missing
+        "coefficients": coefficients,
+        "matrix": matrix_data
     }
     return data_dict
 
-# Main workflow modified to pass hessians
 def run_optimization(config):
-    """Main optimization workflow called by main.py"""
     logging.info("Starting optimization process...")
     start_overall_time = time.perf_counter()
 
-    funcs_minors, funcs_jacobians, funcs_hessians = load_optimization_functions(config)
-    # Check if essential functions (minors, jacobians) loaded
+    funcs_minors, funcs_jacobians = load_optimization_functions(config)
     if funcs_minors is None or funcs_jacobians is None:
         logging.error("Failed to load essential optimization functions (minors/jacobians). Aborting optimization.")
-        return 1 # Indicate failure
-    if funcs_hessians is None:
-         logging.warning("Hessian functions failed to load. Optimizer will approximate.")
-         # Proceed, but trust-constr will approximate Hessians
-
+        return None
 
     try:
         funcs_to_optimize = config['global_data']['funcs_to_optimize']
         if not isinstance(funcs_to_optimize, list) or len(funcs_to_optimize) < 2:
-            logging.error("Config 'funcs_to_optimize' must be a list with at least 2 function indices (e.g., [1, 2]).")
-            return 1
-        # Convert 1-based Sk index from config to 0-based list index
-        s_indices = [f-1 for f in funcs_to_optimize] # Store original 1-based for labels
-        constraint_indices = [f-1 for f in funcs_to_optimize] # 0-based for list access
+             logging.error("Config 'funcs_to_optimize' must be a list with at least 2 function indices.")
+             return None
+        s_indices = [f-1 for f in funcs_to_optimize]
+        constraint_indices = [f-1 for f in funcs_to_optimize]
         logging.info(f"Optimization plan: Constraint order S{funcs_to_optimize}, Indices {constraint_indices}")
     except KeyError as e:
         logging.error(f"Config missing key for optimization setup: {e}")
-        return 1
+        return None
     except Exception as e:
          logging.exception(f"Error processing 'funcs_to_optimize' from config:")
-         return 1
-
+         return None
 
     all_results_dicts = []
     last_stage_success = False
@@ -644,7 +616,6 @@ def run_optimization(config):
     x_mesh_stage3, y_mesh_stage3, z_mesh_stage3 = None, None, None
     w_min_results_stage3, w_max_results_stage3 = None, None
 
-
     # --- Stage 1 ---
     constraint1_idx = constraint_indices[0]
     optimize1_idx = constraint_indices[1]
@@ -653,75 +624,71 @@ def run_optimization(config):
     logging.info(f"--- Running Stage 1 ({label_optimize1} constrained by {label_constraint1}) ---")
     stage1_start = time.perf_counter()
     x_values_stage1, y_min_results_stage1, y_max_results_stage1 = optimize_first_func(
-        funcs_minors, funcs_jacobians, funcs_hessians, config, constraint1_idx, optimize1_idx
+        funcs_minors, funcs_jacobians, config, constraint1_idx, optimize1_idx
     )
     logging.info(f"--- Stage 1 finished in {time.perf_counter() - stage1_start:.4f} seconds ---")
 
     current_stage_results = []
     if x_values_stage1 is not None and y_min_results_stage1 is not None and y_max_results_stage1 is not None:
-        # Check lengths match before processing
         if not (len(x_values_stage1) == len(y_min_results_stage1) == len(y_max_results_stage1)):
-             logging.error(f"Mismatched result lengths in Stage 1: X({len(x_values_stage1)}), Ymin({len(y_min_results_stage1)}), Ymax({len(y_max_results_stage1)})")
+             logging.error(f"Mismatched result lengths in Stage 1...")
         else:
              for i in range(len(x_values_stage1)):
-                 constraints = {label_constraint1: x_values_stage1[i]}
-                 min_dict = process_optimization_result(y_min_results_stage1[i], "min", constraints, label_optimize1)
-                 max_dict = process_optimization_result(y_max_results_stage1[i], "max", constraints, label_optimize1)
+                 constraints_dict = {label_constraint1: x_values_stage1[i]}
+                 # *** Remove config pass here ***
+                 min_dict = process_optimization_result(y_min_results_stage1[i], "min", constraints_dict, label_optimize1)
+                 max_dict = process_optimization_result(y_max_results_stage1[i], "max", constraints_dict, label_optimize1)
                  if min_dict: current_stage_results.append(min_dict)
                  if max_dict: current_stage_results.append(max_dict)
 
     if not current_stage_results:
         logging.error("Stage 1 yielded no valid processed results. Aborting.")
-        return 1 # Critical failure if first stage yields nothing
+        return None
     all_results_dicts = current_stage_results
-    last_stage_success = True # Mark success
-
+    last_stage_success = True
 
     # --- Stage 2 ---
     if len(funcs_to_optimize) >= 3:
-        last_stage_success = False # Reset for this stage
+        last_stage_success = False
         constraint2_idx = constraint_indices[1]
         optimize2_idx = constraint_indices[2]
         label_constraint2 = f"S{funcs_to_optimize[1]}_constraint"
         label_optimize2 = f"S{funcs_to_optimize[2]}_optimized"
         logging.info(f"--- Running Stage 2 ({label_optimize2} constrained by {label_constraint1}, {label_constraint2}) ---")
         stage2_start = time.perf_counter()
-        # Build mesh based on Stage 1 results
         x_mesh_stage2, y_mesh_stage2 = build_XY_mesh(x_values_stage1, y_min_results_stage1, y_max_results_stage1, config)
 
         if x_mesh_stage2 is None or y_mesh_stage2 is None:
-            logging.error("Failed to build XY mesh for Stage 2. Cannot proceed with Stage 2.")
+            logging.error("Failed to build XY mesh for Stage 2.")
         else:
             z_min_results_stage2, z_max_results_stage2 = optimize_second_func(
-                x_mesh_stage2, y_mesh_stage2, funcs_minors, funcs_jacobians, funcs_hessians, config,
+                x_mesh_stage2, y_mesh_stage2, funcs_minors, funcs_jacobians, config,
                 constraint1_idx, constraint2_idx, optimize2_idx
             )
             logging.info(f"--- Stage 2 finished in {time.perf_counter() - stage2_start:.4f} seconds ---")
 
             current_stage_results = []
             if z_min_results_stage2 is not None and z_max_results_stage2 is not None:
-                 # Check lengths match
                  if not (len(x_mesh_stage2) == len(y_mesh_stage2) == len(z_min_results_stage2) == len(z_max_results_stage2)):
-                       logging.error(f"Mismatched result lengths in Stage 2 processing: XY({len(x_mesh_stage2)}), Zmin({len(z_min_results_stage2)}), Zmax({len(z_max_results_stage2)})")
+                       logging.error(f"Mismatched result lengths in Stage 2 processing...")
                  else:
                      for i in range(len(x_mesh_stage2)):
-                         constraints = {label_constraint1: x_mesh_stage2[i], label_constraint2: y_mesh_stage2[i]}
-                         min_dict = process_optimization_result(z_min_results_stage2[i], "min", constraints, label_optimize2)
-                         max_dict = process_optimization_result(z_max_results_stage2[i], "max", constraints, label_optimize2)
+                         constraints_dict = {label_constraint1: x_mesh_stage2[i], label_constraint2: y_mesh_stage2[i]}
+                         # *** Remove config pass here ***
+                         min_dict = process_optimization_result(z_min_results_stage2[i], "min", constraints_dict, label_optimize2)
+                         max_dict = process_optimization_result(z_max_results_stage2[i], "max", constraints_dict, label_optimize2)
                          if min_dict: current_stage_results.append(min_dict)
                          if max_dict: current_stage_results.append(max_dict)
 
             if current_stage_results:
-                all_results_dicts = current_stage_results # Replace with Stage 2 results
+                all_results_dicts = current_stage_results
                 last_stage_success = True
             else:
                  logging.error("Stage 2 yielded no valid processed results.")
-                 # Keep Stage 1 results in all_results_dicts if Stage 2 fails
-
 
     # --- Stage 3 ---
     if len(funcs_to_optimize) >= 4:
-         last_stage_success = False # Reset
+         last_stage_success = False
          constraint3_idx = constraint_indices[2]
          optimize3_idx = constraint_indices[3]
          label_constraint3 = f"S{funcs_to_optimize[2]}_constraint"
@@ -729,64 +696,51 @@ def run_optimization(config):
          logging.info(f"--- Running Stage 3 ({label_optimize3} constrained by {label_constraint1}, {label_constraint2}, {label_constraint3}) ---")
          stage3_start = time.perf_counter()
 
-         # Check if inputs from Stage 2 are available
          if x_mesh_stage2 is None or y_mesh_stage2 is None or z_min_results_stage2 is None or z_max_results_stage2 is None:
-              logging.error("Skipping Stage 3 due to missing or failed inputs from Stage 2.")
+              logging.error("Skipping Stage 3 due to missing inputs from Stage 2.")
          else:
              x_mesh_stage3, y_mesh_stage3, z_mesh_stage3 = build_XYZ_mesh(
                  x_mesh_stage2, y_mesh_stage2, z_min_results_stage2, z_max_results_stage2, config
                  )
              if x_mesh_stage3 is None or y_mesh_stage3 is None or z_mesh_stage3 is None:
-                 logging.error("Failed to build XYZ mesh for Stage 3. Cannot proceed.")
+                 logging.error("Failed to build XYZ mesh for Stage 3.")
              else:
                 w_min_results_stage3, w_max_results_stage3 = optimize_third_func(
-                    x_mesh_stage3, y_mesh_stage3, z_mesh_stage3, funcs_minors, funcs_jacobians, funcs_hessians, config,
+                    x_mesh_stage3, y_mesh_stage3, z_mesh_stage3, funcs_minors, funcs_jacobians, config,
                     constraint1_idx, constraint2_idx, constraint3_idx, optimize3_idx
                 )
                 logging.info(f"--- Stage 3 finished in {time.perf_counter() - stage3_start:.4f} seconds ---")
 
                 current_stage_results = []
                 if w_min_results_stage3 is not None and w_max_results_stage3 is not None:
-                    # Check lengths match
                      if not (len(x_mesh_stage3) == len(y_mesh_stage3) == len(z_mesh_stage3) == len(w_min_results_stage3) == len(w_max_results_stage3)):
-                         logging.error(f"Mismatched result lengths in Stage 3 processing: XYZ({len(x_mesh_stage3)}), Wmin({len(w_min_results_stage3)}), Wmax({len(w_max_results_stage3)})")
+                         logging.error(f"Mismatched result lengths in Stage 3 processing...")
                      else:
                          for i in range(len(x_mesh_stage3)):
-                             constraints = {
+                             constraints_dict = {
                                  label_constraint1: x_mesh_stage3[i],
                                  label_constraint2: y_mesh_stage3[i],
                                  label_constraint3: z_mesh_stage3[i]
                              }
-                             min_dict = process_optimization_result(w_min_results_stage3[i], "min", constraints, label_optimize3)
-                             max_dict = process_optimization_result(w_max_results_stage3[i], "max", constraints, label_optimize3)
+                             # *** Remove config pass here ***
+                             min_dict = process_optimization_result(w_min_results_stage3[i], "min", constraints_dict, label_optimize3)
+                             max_dict = process_optimization_result(w_max_results_stage3[i], "max", constraints_dict, label_optimize3)
                              if min_dict: current_stage_results.append(min_dict)
                              if max_dict: current_stage_results.append(max_dict)
 
                 if current_stage_results:
-                     all_results_dicts = current_stage_results # Replace with Stage 3 results
+                     all_results_dicts = current_stage_results
                      last_stage_success = True
                 else:
                      logging.error("Stage 3 yielded no valid processed results.")
-                     # Keep results from previous successful stage
 
-
-    # --- Save Results ---
-    if all_results_dicts: # Save if any results were generated
-        output_filename = file_utils.build_file_name(config, is_coef=True) # Assumes build_file_name exists
-        save_success = file_utils.save_results(all_results_dicts, output_filename) # Assumes save_results exists
-
-        total_time = time.perf_counter() - start_overall_time
-        if save_success:
-            if last_stage_success:
-                 logging.info(f"Optimization completed and results saved successfully to {output_filename}. Total time: {total_time:.4f} seconds.")
-                 return 0 # Indicate full success
-            else:
-                 logging.warning(f"Optimization completed but the last stage did not yield results. Saving results from the last successful stage to {output_filename}. Total time: {total_time:.4f} seconds.")
-                 return 1 # Indicate partial success/last stage failure
-        else:
-             logging.error(f"Failed to save optimization results to {output_filename}. Total time: {total_time:.4f} seconds.")
-             return 1 # Indicate failure (save failed)
+    total_time = time.perf_counter() - start_overall_time
+    if not all_results_dicts:
+        logging.error(f"Optimization finished but generated no results. Total time: {total_time:.4f} seconds.")
+        return None
+    elif not last_stage_success:
+         logging.warning(f"Optimization finished, but the last stage did not yield results. Returning results from the last successful stage. Total time: {total_time:.4f} seconds.")
     else:
-        total_time = time.perf_counter() - start_overall_time
-        logging.error(f"No valid optimization results were generated to save. Total time: {total_time:.4f} seconds.")
-        return 1 # Indicate failure (no results)
+         logging.info(f"Optimization completed successfully. Returning results. Total time: {total_time:.4f} seconds.")
+
+    return all_results_dicts

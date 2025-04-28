@@ -87,19 +87,19 @@ def find_eigenvalues(matrix, config):
         logging.exception("Unexpected error during eigenvalue calculation:")
         return None
 
-def run_eigenvalue_computation(config):
-    """Loads results, computes eigenvalues, saves combined/labeled results."""
+def run_eigenvalue_computation(config, results_data):
+    """
+    Computes eigenvalues for the provided optimization results list,
+    adds them to the dictionaries, and returns the updated list.
+    Returns None on critical failure. Does NOT save results.
+    """
     logging.info("--- Starting Eigenvalue Computation ---")
     start_time = time.perf_counter()
 
-    # Load optimization results
-    optimization_results_filename = file_utils.build_file_name(config, is_coef=True)
-    results_data = file_utils.load_results(optimization_results_filename)
     if results_data is None:
-        logging.error("Failed to load optimization results. Cannot compute eigenvalues.")
-        return 1 # Failure
+        logging.error("Received None for optimization results list. Cannot compute eigenvalues.")
+        return None
 
-    # Compute Eigenvalues
     combined_eigenvalue_results = []
     processed_count = 0
     skipped_count = 0
@@ -108,9 +108,14 @@ def run_eigenvalue_computation(config):
         try:
             matrix_list = item.get('matrix')
             result_type = item.get('type', 'unknown')
+            coefficients = item.get('coefficients')
 
             if matrix_list is None:
                  logging.warning("Skipping entry due to missing 'matrix'.")
+                 skipped_count += 1
+                 continue
+            if coefficients is None:
+                 logging.warning("Skipping entry due to missing 'coefficients'.")
                  skipped_count += 1
                  continue
 
@@ -126,17 +131,10 @@ def run_eigenvalue_computation(config):
                 skipped_count += 1
                 continue
 
-            eigvals_serializable = [e for e in eigvals]
+            output_dict = item.copy()
+            output_dict["eigenvalues"] = eigvals 
 
-            # Create labeled dictionary, include original constraints/optimized value
-            eigenvalue_dict = {
-                "type": result_type,
-                 # Copy constraint/optimized keys from the optimization result item
-                **{k: v for k, v in item.items() if k.endswith(('_constraint', '_optimized'))},
-                "eigenvalues": eigvals_serializable,
-                "matrix": matrix_list # Include original matrix list
-            }
-            combined_eigenvalue_results.append(eigenvalue_dict)
+            combined_eigenvalue_results.append(output_dict)
             processed_count += 1
 
         except Exception as e:
@@ -147,15 +145,7 @@ def run_eigenvalue_computation(config):
 
     if not combined_eigenvalue_results:
         logging.error("No eigenvalues were successfully computed.")
-        return 1 # Failure
+        return combined_eigenvalue_results
 
-    # Save Combined Eigenvalues
-    eigenvalue_output_filename = file_utils.build_file_name(config, is_coef=False)
-    save_success = file_utils.save_results(combined_eigenvalue_results, eigenvalue_output_filename)
-
-    if save_success:
-        logging.info(f"--- Eigenvalue Computation Finished successfully in {time.perf_counter() - start_time:.4f} seconds ---")
-        return 0 # Success
-    else:
-        logging.error("Failed to save eigenvalue results.")
-        return 1 # Failure
+    logging.info(f"--- Eigenvalue Computation Finished successfully in {time.perf_counter() - start_time:.4f} seconds ---")
+    return combined_eigenvalue_results
