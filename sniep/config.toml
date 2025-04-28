@@ -1,8 +1,12 @@
 [global_data]
 n = 5
-points_dim = [2,2,2]
+points_dim = [41,41,41]
 funcs_to_optimize = [2, 3, 4]
 decimal_precision = 3
 tol = 1e-6
 maxiter = 100000
 attempts = 10000
+
+[plot_data]
+num_eigenvalue_slices = 5
+slice_tolerance = 0.05
