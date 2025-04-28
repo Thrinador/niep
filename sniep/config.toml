@@ -1,7 +1,7 @@
 [global_data]
-n = 5
-points_dim = [41,41,41]
-funcs_to_optimize = [2, 3, 4]
+n = 4
+points_dim = [103,103]
+funcs_to_optimize = [2, 3]
 decimal_precision = 3
 tol = 1e-6
 maxiter = 100000
