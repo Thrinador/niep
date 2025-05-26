@@ -1,5 +1,5 @@
 [global_data]
-n = 4
+n = 5
 points_dim = [103,103]
 funcs_to_optimize = [2, 3]
 decimal_precision = 3
