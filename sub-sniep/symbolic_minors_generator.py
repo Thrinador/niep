@@ -33,16 +33,14 @@ def generate_sk_jacobian_code(n, k):
     variables = []
     variable_map = {} 
     var_names = []
-    idx = 0
 
     for i in range(n):
-        for j in range(i + 1, n):
+        for j in range(i, n):
             var_name = f'x_{i}_{j}'
             sym = sympy.symbols(var_name)
             variables.append(sym)
             var_names.append(var_name)
             variable_map[(i, j)] = sym
-            idx += 1
 
     num_vars = len(variables)
     print(f"Generating S_{k}, Jac for N={n} general symm. stochastic ({num_vars} variables)...")
@@ -56,16 +54,16 @@ def generate_sk_jacobian_code(n, k):
     try:
         M = sympy.zeros(n, n)
         for i in range(n):
-            for j in range(i + 1, n): val = variable_map[(i, j)]; M[i, j] = val; M[j, i] = val
-        for i in range(n):
-            off_diag_sum = sympy.sympify(0); 
-            [off_diag_sum := off_diag_sum + M[i,c] for c in range(n) if i!=c]
-            diag_val = 1 - off_diag_sum
-            diag_val=sympy.simplify(diag_val)
-            M[i, i] = diag_val
+            M[i,i] = variable_map[(i, i)]
+            for j in range(i + 1, n): 
+                M[i, j] = variable_map[(i, j)]
+                M[j, i] = variable_map[(i, j)]
         print("... Symbolic matrix constructed.")
 
-        sk_expr = sympy.sympify(0); indices = range(n); total_minors = sympy.binomial(n, k)
+        sk_expr = sympy.sympify(0)
+        indices = range(n)
+        total_minors = sympy.binomial(n, k)
+        
         for i_calc, subset_indices in enumerate(itertools.combinations(indices, k)):
             submatrix = M[list(subset_indices), list(subset_indices)] 
             det_expr = sympy.expand(submatrix.det())
