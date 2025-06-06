@@ -105,6 +105,6 @@ def plot_filtered_eigenvalues(json_file_path):
 if __name__ == '__main__':
     # Define the path to your filtered JSON data file
     # This should be the output file from the previous filtering script
-    FILTERED_JSON_PATH = 'filtered_output_data_round4.json' 
+    FILTERED_JSON_PATH = 'points_outside_hull.json' 
 
     plot_filtered_eigenvalues(FILTERED_JSON_PATH)
