@@ -1,6 +1,6 @@
 [global_data]
-n = 3
-points_dim = [103,103]
+n = 4
+points_dim = [200,200]
 funcs_to_optimize = [2, 3]
 decimal_precision = 3
 tol = 1e-6

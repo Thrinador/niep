@@ -63,7 +63,7 @@ def generate_sk_jacobian_code(n, k):
         sk_expr = sympy.sympify(0)
         indices = range(n)
         total_minors = sympy.binomial(n, k)
-        
+
         for i_calc, subset_indices in enumerate(itertools.combinations(indices, k)):
             submatrix = M[list(subset_indices), list(subset_indices)] 
             det_expr = sympy.expand(submatrix.det())
@@ -158,11 +158,12 @@ def {jac_func_name}(x_vec):
 
 if __name__ == "__main__":
     N_TARGET = 3
-    K_TARGETS = list(range(1, N_TARGET))
+    K_TARGETS = list(range(1, N_TARGET+1))
     output_filename = f"symbolic_minors_n{N_TARGET}.py"
 
     print(f"Starting code generation for N = {N_TARGET} (General Symm. Stochastic)")
-    print(f"Target k values: {K_TARGETS}"); print(f"Output file: {output_filename}")
+    print(f"Target k values: {K_TARGETS}")
+    print(f"Output file: {output_filename}")
     print("-" * 30)
     generated_blocks = []
     for k_target in K_TARGETS:
