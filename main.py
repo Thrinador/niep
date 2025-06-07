@@ -62,29 +62,13 @@ def setup_logging(config):
          return False
 
 
-def load_config(config_path="config.toml"):
-    """Loads the TOML configuration file."""
-    try:
-        with open(config_path, "rb") as f:
-            config_data = tomli.load(f)
-        print(f"Configuration loaded successfully from {config_path}") # Print before logging is ready
-        return config_data
-    except FileNotFoundError:
-        print(f"FATAL ERROR: Configuration file not found: {config_path}", file=sys.stderr)
-        return None
-    except tomli.TOMLDecodeError as e:
-         print(f"FATAL ERROR: Failed to parse TOML file {config_path}: {e}", file=sys.stderr)
-         return None
-    except Exception as e:
-        print(f"FATAL ERROR: Unexpected error loading configuration: {e}", file=sys.stderr)
-        return None
-
-
 if __name__ == '__main__':
     print("Script execution started.")
     main_start_time = time.perf_counter()
 
-    config = load_config("config.toml")
+    with open("config.toml", "rb") as f:
+        config = tomli.load(f)
+
     if config is None: sys.exit(1)
     if not setup_logging(config): sys.exit(1)
 
