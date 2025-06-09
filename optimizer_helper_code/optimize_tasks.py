@@ -224,7 +224,7 @@ def build_next_mesh(
             logging.error(f"'points_dim' ({points_dim}) too short for mesh stage index {current_dim_index}.")
             return None
         num_new_points = points_dim[current_dim_index]
-        tol = config['global_data']['tol']
+        tol = config['optimize_data']['tol']
     except KeyError as e:
         logging.error(f"Config missing key for build_next_mesh (points_dim): {e}")
         return None
