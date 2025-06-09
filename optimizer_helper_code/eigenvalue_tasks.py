@@ -44,7 +44,7 @@ def build_matrix(array, config):
         row_sums = np.sum(matrix, axis=1)
         for j in range(n):
             matrix[j][j] = 1.0 - row_sums[j] # Use float for diagonal
-    elif matrix_type == 'subsniep':
+    elif matrix_type == 'sub_sniep':
         for j in range(n):
             for k in range(j, n):
                 if j == k:
@@ -62,11 +62,7 @@ def build_matrix(array, config):
 
 def find_eigenvalues(matrix, config):
     """Calculates eigenvalues, sorts descending by real part, removes largest."""
-    try:
-        n = config['global_data']['n']
-    except KeyError as e:
-         logging.error(f"Config missing key 'n' for find_eigenvalues: {e}")
-         return None
+    n = config['global_data']['n']
 
     if not isinstance(matrix, np.ndarray) or matrix.shape != (n, n):
         logging.error(f"Invalid input to find_eigenvalues. Expected {n}x{n} ndarray.")
@@ -88,12 +84,12 @@ def find_eigenvalues(matrix, config):
              return []
 
         perron_root = eigvals_list[0]
-        # Tolerance check for Perron root (adjust tol if needed)
-        eig_tol = config.get('global_data', {}).get('eig_tol', 1e-5)
-        if not np.isclose(perron_root.real, 1.0, atol=eig_tol) or not np.isclose(perron_root.imag, 0.0, atol=eig_tol):
-             logging.warning(f"Largest eigenvalue removed ({perron_root}) is not close to 1 (tol={eig_tol}).")
 
-        #del eigvals_list[0] # Remove the largest eigenvalue
+        # Scale the array such that the perron root is 1.
+        if perron_root > 0.001:
+            eigvals_list = list(map(lambda x: x / perron_root, eigvals_list))
+
+        del eigvals_list[0]
         logging.debug(f"Calculated and processed eigenvalues: {eigvals_list}")
         return eigvals_list
 
