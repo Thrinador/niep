@@ -76,7 +76,7 @@ def save_results(config, results, filename):
 
     logging.info(f"Preparing to save results to {filename}")
 
-    precision = config['global_data']['decimal_precision']
+    precision = config['file_utils_data']['decimal_precision']
     if precision is not None:
         logging.debug(f"Rounding numerical data to {precision} decimal places before saving.")
         try:

@@ -12,7 +12,7 @@ import time
 from pathos.pools import ProcessPool as Pool
 from typing import List, Tuple, Dict, Any, Optional
 
-import file_utils
+from optimizer_helper_code import file_utils
 
 def load_optimization_functions(config):
     """Dynamically loads minors and jacobians based on config"""
@@ -22,7 +22,7 @@ def load_optimization_functions(config):
         module_name = f"{matrix_type}_symbolic_minors_n{n}"
 
         logging.info(f"Attempting to load functions from module: {module_name}")
-        symbolic_module = importlib.import_module(module_name)
+        symbolic_module = getattr(importlib.import_module('optimizer_helper_code'), module_name)
 
         funcs = {'minors': [], 'jacobians': []}
         func_types = {
@@ -111,13 +111,17 @@ def run_function_with_const(loc, constraints, funcs_minors, funcs_jacobians, con
     """
     try:
         n = config['global_data']['n']
+        matrix_type = config['global_data']['matrix_type']
         num_variables = 0
         if matrix_type == 'niep':
             num_variables = n**2 - n
         elif matrix_type == 'sniep':
-            num_variables == comb(n, 2)
+            num_variables = comb(n, 2)
         elif matrix_type == 'sub_sniep':
-            num_variables == comb(n+1, 2)
+            num_variables = comb(n+1, 2)
+        else:
+            logging.error(f"Incorrect matrix types in file optimize_tasks function run_function_with_const with matrix type {matrix_type}")
+            return None
 
         tol = config['optimize_data']['tol']
         maxiter = config['optimize_data']['maxiter']
@@ -286,13 +290,7 @@ def optimize_constrained_dimension(
     dimension_label: str
 ) -> Tuple[Optional[List[Any]], Optional[List[Any]]]:
     """Runs min/max optimization for a target function, constrained by values at mesh points."""
-    try:
-         g_data = 
-         n = config['global_data']['n']
-    except KeyError as e:
-        logging.error(f"Config missing key 'n' for optimize_constrained_dimension ({dimension_label}): {e}")
-        return None, None
-
+    n = config['global_data']['n']
     if mesh_points is None:
         logging.error(f"Invalid mesh_points input (None) provided ({dimension_label}).")
         return None, None
@@ -442,12 +440,12 @@ def run_optimization(config):
     if num_x_points < 1: num_x_points = 1; logging.warning("Points for first optimized dim < 1, set to 1.")
 
     if num_x_points == 1:
-         single_x_value = g_data.get('single_x_value', float(n) / 2.0) # Constraint value for S1
+         single_x_value = float(n) / 2.0
          x_values = np.array([single_x_value])
          logging.info(f"Running for single initial constraint value: {label_constraint1}={x_values[0]:.4f}")
     else:
-        x_min = g_data.get('x_min', 0.0) # Range for S1 constraint
-        x_max = g_data.get('x_max', float(n))
+        x_min = 0.0
+        x_max = float(n)
         x_values = np.linspace(x_min, x_max, num_x_points)
         logging.info(f"Running for {num_x_points} initial values of {label_constraint1} [{x_min:.4f}, {x_max:.4f}]")
 

@@ -3,7 +3,7 @@ import logging
 import time
 from math import comb
 
-import file_utils
+from optimizer_helper_code import file_utils
 
 def build_matrix(array, config):
     """Builds the n x n matrix from the 1D array of variables."""
@@ -16,7 +16,7 @@ def build_matrix(array, config):
     elif matrix_type == 'sniep':
         num_variables = comb(n, 2)
     elif matrix_type == 'sub_sniep':
-        num_variables == comb(n+1, 2)
+        num_variables = comb(n+1, 2)
     else:
         logging.error(f"Invalid matrix type in file eigenvalue_tasks with method build matrix. Got {matrix_type}")
         return None
