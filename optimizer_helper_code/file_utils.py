@@ -43,18 +43,18 @@ def ensure_directory_exists(filename):
             logging.error(f"Could not create directory {parent_dir}: {e}")
             raise
 
-def build_file_name(config):
+def build_file_name(config, file_type='data'):
     """Builds the consolidated output filename based on configuration."""
-    return build_file_name_no_extension(config) + ".json"
+    return build_file_name_no_extension(config, file_type) + ".json"
 
-def build_file_name_no_extension(config):
+def build_file_name_no_extension(config, file_type='data'):
     """Builds the consolidated output filename based on configuration."""
     try:
         n = config['global_data']['n']
         points_dim = config['global_data']['points_dim']
         base = config['global_data']['matrix_type']
         dims_str = "_".join(map(str, points_dim))
-        base_dir = os.path.join(base,"data")
+        base_dir = os.path.join(base,file_type)
 
         filename = os.path.join(base_dir, f"{base}_n{n}_dims{dims_str}")
         logging.debug(f"Generated consolidated filename: {filename}")
