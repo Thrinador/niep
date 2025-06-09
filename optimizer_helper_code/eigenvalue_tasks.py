@@ -12,7 +12,7 @@ def build_matrix(array, config):
 
     num_variables = 0
     if matrix_type == 'niep':
-        num_variables = n^2 - n
+        num_variables = n**2 - n
     elif matrix_type == 'sniep':
         num_variables = comb(n, 2)
     elif matrix_type == 'sub_sniep':
@@ -29,18 +29,20 @@ def build_matrix(array, config):
     m = 0
 
     if matrix_type == 'niep':
-        logging.error(f"File eigenvalue_tasks with method build matrix. Build matrix type niep not implemented!!")
-        return None
+        for j in range(n):
+            for k in range(0, n):
+                if j != k:
+                    matrix[j][k] = array[m]
+                    m += 1
+        row_sums = np.sum(matrix, axis=1)
+        for j in range(n):
+            matrix[j][j] = 1.0 - row_sums[j] # Use float for diagonal
     elif matrix_type == 'sniep':
         for j in range(n):
             for k in range(j+1, n):
-                if j == k:
-                    matrix[j][j] = array[m]
-                    m += 1
-                else:
-                    matrix[j][k] = array[m]
-                    matrix[k][j] = array[m]
-                    m += 1
+                matrix[j][k] = array[m]
+                matrix[k][j] = array[m]
+                m += 1
         row_sums = np.sum(matrix, axis=1)
         for j in range(n):
             matrix[j][j] = 1.0 - row_sums[j] # Use float for diagonal

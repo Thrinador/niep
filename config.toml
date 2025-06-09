@@ -1,14 +1,14 @@
 [global_data]
 # Size of the matrix to use
-n = 5
+n = 4
 # Options: 
 #  - niep, for stochastic niep;
 #  - sniep, for stochasic sniep;
 #  - sub_sniep, for substochastic sniep.
 matrix_type = "sub_sniep" 
 # Number of sampled points for each axis.
-points_dim = [17,17,17]
-funcs_to_optimize = [2, 3, 4]
+points_dim = [198,198]
+funcs_to_optimize = [2, 3]
 
 [optimize_data]
 tol = 1e-6

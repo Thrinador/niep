@@ -71,12 +71,14 @@ def build_matrix_constraints(config):
         A = None
 
         if matrix_type == 'niep':
-            logging.error(f"File optimize_tasks with method build_matrix_constraints, type niep not implemented!!")
-            return None
+            num_variables = n**2 - n
+            A = np.zeros((n, num_variables))
+            idx = 0
+            for i in range(n):
+                for j in range(n-1):
+                    A[i, idx] = 1
+                    idx += 1
         elif matrix_type == 'sniep':
-            # TODO
-            # This should be checked. I am not remembering why we need the linear constraints in the stochastic case.
-            # They should be baked into the main diagional being dependent.
             num_variables = comb(n, 2)
             A = np.zeros((n, num_variables))
             idx = 0
@@ -85,7 +87,6 @@ def build_matrix_constraints(config):
                     A[i, idx] = 1
                     A[j, idx] = 1
                     idx += 1
-            return LinearConstraint(A, np.zeros(n), np.ones(n))
         elif matrix_type == 'sub_sniep':
             num_variables = comb(n+1, 2)
             A = np.zeros((n, num_variables))
@@ -195,8 +196,6 @@ def optimize_func(loc, funcs_minors, funcs_jacobians, config, eqs=[], count=0):
     linear_constraints = build_matrix_constraints(config)
     if linear_constraints:
         constraints_list.append(linear_constraints)
-    else:
-        logging.error(f"Failed to build linear matrix constraints for {func_name} run {count}! Results may be invalid.")
 
     # Call the core optimizer
     return run_function_with_const(
