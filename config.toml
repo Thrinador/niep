@@ -9,6 +9,8 @@ matrix_type = "sniep"
 # Number of sampled points for each axis.
 points_dim = [200,200]
 funcs_to_optimize = [2, 3]
+
+[optimize_data]
 tol = 1e-6
 maxiter = 100000
 attempts = 10000
