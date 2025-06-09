@@ -45,6 +45,10 @@ def ensure_directory_exists(filename):
 
 def build_file_name(config):
     """Builds the consolidated output filename based on configuration."""
+    return build_file_name_no_extension(config) + ".json"
+
+def build_file_name_no_extension(config):
+    """Builds the consolidated output filename based on configuration."""
     try:
         n = config['global_data']['n']
         points_dim = config['global_data']['points_dim']
@@ -52,7 +56,7 @@ def build_file_name(config):
         dims_str = "_".join(map(str, points_dim))
         base_dir = os.path.join(base,"data")
 
-        filename = os.path.join(base_dir, f"{base}_n{n}_dims{dims_str}.json")
+        filename = os.path.join(base_dir, f"{base}_n{n}_dims{dims_str}")
         logging.debug(f"Generated consolidated filename: {filename}")
         return filename
     except KeyError as e:
