@@ -7,12 +7,19 @@ import file_utils
 
 def build_matrix(array, config):
     """Builds the n x n matrix from the 1D array of variables."""
-    try:
-        n = config['global_data']['n']
-        num_variables = comb(n+1, 2)
-    except KeyError as e:
-         logging.error(f"Config missing key for build_matrix: {e}")
-         return None
+    n = config['global_data']['n']
+    matrix_type = config['global_data']['matrix_type']
+
+    num_variables = 0
+    if matrix_type == 'niep':
+        num_variables = n^2 - n
+    elif matrix_type == 'sniep':
+        num_variables = comb(n, 2)
+    elif matrix_type == 'sub_sniep':
+        num_variables == comb(n+1, 2)
+    else:
+        logging.error(f"Invalid matrix type in file eigenvalue_tasks with method build matrix. Got {matrix_type}")
+        return None
 
     if array is None or len(array) != num_variables:
          logging.error(f"Invalid array input for build_matrix. Expected length {num_variables}, got {len(array) if array else 'None'}.")
@@ -20,30 +27,38 @@ def build_matrix(array, config):
 
     matrix = np.zeros((n, n))
     m = 0
-    try:
+
+    if matrix_type == 'niep':
+        logging.error(f"File eigenvalue_tasks with method build matrix. Build matrix type niep not implemented!!")
+        return None
+    elif matrix_type == 'sniep':
+        for j in range(n):
+            for k in range(j+1, n):
+                if j == k:
+                    matrix[j][j] = array[m]
+                    m += 1
+                else:
+                    matrix[j][k] = array[m]
+                    matrix[k][j] = array[m]
+                    m += 1
+        row_sums = np.sum(matrix, axis=1)
+        for j in range(n):
+            matrix[j][j] = 1.0 - row_sums[j] # Use float for diagonal
+    elif matrix_type == 'subsniep':
         for j in range(n):
             for k in range(j, n):
                 if j == k:
                     matrix[j][j] = array[m]
                     m += 1
-                elif m < len(array):
+                else:
                     matrix[j][k] = array[m]
                     matrix[k][j] = array[m]
                     m += 1
-                else:
-                     logging.error(f"Index 'm' exceeded array bounds during matrix build (symmetric).")
-                     return None
-        row_sums = np.sum(matrix, axis=1)
-        for j in range(n):
-            matrix[j][j] = 1.0 - row_sums[j] # Use float for diagonal
 
-        if m != num_variables:
-             logging.warning(f"Variable counter 'm' ({m}) != expected ({num_variables}) after build.")
-        return matrix
+    if m != num_variables:
+            logging.warning(f"Variable counter 'm' ({m}) != expected ({num_variables}) after build.")
+    return matrix
 
-    except Exception as e:
-        logging.exception("Unexpected error during matrix construction:")
-        return None
 
 def find_eigenvalues(matrix, config):
     """Calculates eigenvalues, sorts descending by real part, removes largest."""
