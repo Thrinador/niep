@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+// Defines the structure for a single data block.
+message DataBlock {
+  string type = 1;
+  repeated double coefficients = 2;
+  repeated double matrix = 3;
+  repeated double eigenvalues = 4;
+}
+
+// Defines a message that contains an array of DataBlock messages.
+// This corresponds to the top-level JSON array.
+message DataBlockArray {
+  repeated DataBlock items = 1;
+}
