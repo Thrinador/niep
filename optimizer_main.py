@@ -8,9 +8,9 @@ from datetime import datetime
 import json
 
 # Import tasks from other modules
-from optimizer_helper_code import file_utils
-from optimizer_helper_code import optimize_tasks
-from optimizer_helper_code import eigenvalue_tasks
+from lib import file_utils
+from lib import optimize_tasks
+from lib import eigenvalue_tasks
 
 def setup_logging(config):
     """Configures logging based on config and timestamp."""

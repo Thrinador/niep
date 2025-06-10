@@ -122,7 +122,7 @@ if __name__ == '__main__':
         (-0.25, -0.25, -0.25, -0.25), (1,-0.5,-0.5,-0.5), (0,0,0,-0.8)
     ]
 
-    input_filepath = 'sniep/data/ds-sniep_n5_dims41_41_41.json'
+    input_filepath = '../../sub_sniep/data/sub_sniep_n5_dims17_17_17.json'
     output_filepath = 'points_outside_hull.json' # Updated default name
     
     # Define your desired tolerance. 
