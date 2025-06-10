@@ -5,9 +5,9 @@ n = 4
 #  - niep, for stochastic niep;
 #  - sniep, for stochasic sniep;
 #  - sub_sniep, for substochastic sniep.
-matrix_type = "sub_sniep" 
+matrix_type = "niep" 
 # Number of sampled points for each axis.
-points_dim = [198,198]
+points_dim = [201, 201]
 funcs_to_optimize = [2, 3]
 
 [optimize_data]

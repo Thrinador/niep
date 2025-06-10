@@ -22,7 +22,7 @@ def create_coeff_plot(n, all_coeffs, run_identifier):
             coeffs_x.append(coeffs[0])
             coeffs_y.append(coeffs[1])
 
-        fig_coeffs.add_trace(go.Scatter2d(x=coeffs_x, y=coeffs_y, mode='markers', marker=marker_config))
+        fig_coeffs.add_trace(go.Scatter(x=coeffs_x, y=coeffs_y, mode='markers', marker=marker_config))
         fig_coeffs.update_layout(title=f'Coefficient Space ({run_identifier})', 
                                 scene=dict(
                                     xaxis_title=f"Coefficient 1", 
@@ -76,7 +76,7 @@ def create_eig_plot(n, all_eigs, run_identifier):
             eigs_x.append(eigs[0])
             eigs_y.append(eigs[1])
 
-        fig_eigs.add_trace(go.Scatter2d(x=eigs_x, y=eigs_y, mode='markers', marker=marker_config))
+        fig_eigs.add_trace(go.Scatter(x=eigs_x, y=eigs_y, mode='markers', marker=marker_config))
         fig_eigs.update_layout(
             title=f'Eigenvalue Space ({run_identifier})',
             scene=dict(
