@@ -110,14 +110,14 @@ if __name__ == '__main__':
     user_points = [
         (1, 1, 1, 1), 
         (1, 1, 1, -1), 
-        (1,1,-1,-1),
-        (1, 1, -0.5, -0.5), 
+        (1, 1, -1, -1),
         (1, -0.5, -0.5, -1),
-        (cos_2pi_5, cos_2pi_5, cos_4pi_5, cos_4pi_5), # approx (0.309, 0.309, -0.809, -0.809)
+        (cos_2pi_5, cos_2pi_5, cos_4pi_5, cos_4pi_5),
         (-0.25, -0.25, -0.25, -0.25), 
-        (1, -0.5, -0.5, -0.5), # Added point
-        (0, 0, 0, -0.8),        # Added point
-        (1,-1/3,-1/3,-1/3)
+        (1,-0.5,-0.5,-0.5), 
+        (0, 0, 0, -1),
+        (1,0,-1,-1),
+        (0.5,-0.5,-0.5,-0.5)
     ]
     
     print("Checking for necessary extreme points (vertices) in the provided list:")

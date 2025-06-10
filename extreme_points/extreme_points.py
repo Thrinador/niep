@@ -116,19 +116,27 @@ if __name__ == '__main__':
     cos_4pi_5 = np.cos(4 * np.pi / 5)
 
     hull_points = [
-        (1, 1, 1, 1), (1, 1, 1, -1), (1, 1, -1, -1),
-        (1, 1, -0.5, -0.5), (1, -0.5, -0.5, -1),
+        (1, 1, 1, 1), 
+        (1, 1, 1, -1), 
+        (1, 1, -1, -1),
+        (1, 1, -0.5, -0.5), 
+        (1, -0.5, -0.5, -1),
         (cos_2pi_5, cos_2pi_5, cos_4pi_5, cos_4pi_5),
-        (-0.25, -0.25, -0.25, -0.25), (1,-0.5,-0.5,-0.5), (0,0,0,-0.8)
+        (-0.25, -0.25, -0.25, -0.25), 
+        (1,-0.5,-0.5,-0.5), 
+        (0, 0, 0, -1),
+        (1,-1/3,-1/3,-1/3),
+        (1,0,-1,-1),
+        (0.5,-0.5,-0.5,-0.5)
     ]
 
-    input_filepath = '../../sub_sniep/data/sub_sniep_n5_dims17_17_17.json'
+    input_filepath = '../sub_sniep/data/sub_sniep_n5_dims17_17_17.json'
     output_filepath = 'points_outside_hull.json' # Updated default name
     
     # Define your desired tolerance. 
     # A small positive value, e.g., 1e-9, 1e-7.
     # If a point is outside a facet by more than this, it's flagged.
-    custom_tolerance = 0.15
+    custom_tolerance = 0.05
 
     print(f"Defining convex hull with {len(set(map(tuple,hull_points)))} unique points.")
     print("Points defining the hull (these are not sorted for hull definition):")

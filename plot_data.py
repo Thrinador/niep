@@ -3,7 +3,6 @@ import os
 import logging
 import time
 import math
-import plotly.graph_objects as go
 import tomli
 
 from lib import file_utils
@@ -23,7 +22,6 @@ if __name__ == "__main__":
         exit()
 
     plot_dir = file_utils.build_file_name_no_extension(config, 'plots')
-
 
     # 2. Load and extract the data
     data_filename = file_utils.build_file_name(config)
