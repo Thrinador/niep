@@ -7,12 +7,12 @@ n = 6
 #  - sub_sniep, for substochastic sniep.
 matrix_type = "sniep" 
 # Number of sampled points for each axis.
-points_dim = [11,11,11,11]
+points_dim = [17,17,17,17]
 funcs_to_optimize = [2, 3, 4,5]
 
 [optimize_data]
-tol = 1e-7
-maxiter = 100000
+tol = 1e-6
+maxiter = 10000
 attempts = 1000
 
 [file_utils_data]
