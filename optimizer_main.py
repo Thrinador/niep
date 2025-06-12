@@ -20,11 +20,12 @@ def setup_logging(config):
         # Generate dynamic log filename
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         n = config['global_data']['n']
+        matrix_type = config['global_data']['matrix_type']
         points_dim = config['global_data']['points_dim']
         dims_str = "-".join(map(str, points_dim))
         log_dir = "logs"
         os.makedirs(log_dir, exist_ok=True)
-        log_file_name = os.path.join(log_dir, f"{timestamp}_sniep_n-{n}_dims-{dims_str}.log")
+        log_file_name = os.path.join(log_dir, f"{timestamp}_{matrix_type}_n-{n}_dims-{dims_str}.log")
 
         # Configure logging
         log_format = '%(asctime)s - %(levelname)s - %(message)s'

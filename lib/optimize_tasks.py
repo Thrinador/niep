@@ -90,13 +90,10 @@ def build_matrix_constraints(config):
             A = np.zeros((n, num_variables))
             idx = 0
             for i in range(n):
-                # Diagonal elements x_i_i
-                A[i, idx + i] = 1
-                for j in range(i + 1, n):
-                    # Off-diagonal elements x_i_j
-                    A[i, idx + j] = 1
-                    A[j, idx + j] = 1
-                idx += n - i
+                for j in range(i, n):
+                    A[i, idx] = 1
+                    A[j, idx] = 1
+                    idx +=1
 
 
         return LinearConstraint(A, np.zeros(n), np.ones(n))
@@ -130,9 +127,10 @@ def run_function_with_const(loc, constraints, combined_funcs, config, run_count=
         attempts = config['optimize_data']['attempts']
 
         func_name = f"S{loc+1}" if loc < n else f"-S{loc-n+1}"
-        logging.debug(
-            f"Minimize ('SLSQP') for {func_name} (run {run_count}): ftol={tol}, maxiter={maxiter}, attempts={attempts}"
-        )
+        if run_count % 503 == 0:
+            logging.debug(
+                f"Minimize ('SLSQP') for {func_name} (run {run_count}): ftol={tol}, maxiter={maxiter}, attempts={attempts}"
+            )
 
     except KeyError as e:
         logging.error(f"Config missing key for run_function_with_const setup (n): {e}")
@@ -145,8 +143,8 @@ def run_function_with_const(loc, constraints, combined_funcs, config, run_count=
     bounds = Bounds([0.0] * num_variables, [1.0] * num_variables)
 
     last_result = None
+    x0 = np.full(num_variables, 0.0)
     for i in range(attempts):
-        x0 = np.random.rand(num_variables)
         try:
             # Key Change: Use jac=True since combined_func returns (value, jacobian)
             result = minimize(
@@ -157,8 +155,9 @@ def run_function_with_const(loc, constraints, combined_funcs, config, run_count=
             if result.success:
                 if run_count % 503 == 0:
                     logging.info(f"Optimization successful for {func_name} run={run_count} on attempt {i+1}.")
-                logging.debug(f"Success Result for {func_name} (run {run_count}):\n{result}")
+                    logging.debug(f"Success Result for {func_name} (run {run_count}):\n{result}")
                 return result
+            x0 = np.random.rand(num_variables)
         except (ValueError, TypeError) as e:
              logging.exception(f"Error during minimize attempt {i+1} for {func_name} run={run_count}: {e}. Check combined function.")
              last_result = None; break
@@ -168,6 +167,7 @@ def run_function_with_const(loc, constraints, combined_funcs, config, run_count=
 
     if last_result is None or not last_result.success:
         logging.error(f"Optimization failed for {func_name} run={run_count} after {attempts} attempts.")
+        logging.error(f"Success Result for {func_name} (run {run_count}):\n{result}")
         if last_result is None:
             logging.error(f"All attempts failed critically for {func_name} run={run_count}.")
 
