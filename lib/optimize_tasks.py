@@ -22,7 +22,7 @@ def load_optimization_functions(config):
         module_name = f"{matrix_type}_symbolic_minors_n{n}"
 
         logging.info(f"Attempting to load functions from module: {module_name}")
-        symbolic_module = getattr(importlib.import_module('optimizer_helper_code'), module_name)
+        symbolic_module = getattr(importlib.import_module('lib'), module_name)
 
         funcs = {'minors': [], 'jacobians': []}
         func_types = {

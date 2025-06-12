@@ -117,7 +117,8 @@ if __name__ == '__main__':
         (1,-0.5,-0.5,-0.5), 
         (0, 0, 0, -1),
         (1,0,-1,-1),
-        (0.5,-0.5,-0.5,-0.5)
+        (0.5,-0.5,-0.5,-0.5),
+        (1,-1/3, -1/3, -1/3)
     ]
     
     print("Checking for necessary extreme points (vertices) in the provided list:")

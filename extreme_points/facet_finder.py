@@ -3,7 +3,7 @@ from scipy.spatial import ConvexHull
 from collections import defaultdict
 
 # Define the original 5D points
-points_5d = np.array([
+points_5d_old = np.array([
     [1, 1, 1, 1, 1],  # p1 (index 0)
     [1, 1, 1, 1, -1], # p2 (index 1)
     [1, 1, 1, -1, -1],# p3 (index 2)
@@ -13,6 +13,19 @@ points_5d = np.array([
     [1, 0, 0, 0, -0.8], # p7 (index 6)
     [1, -1/4, -1/4, -1/4, -1/4] # p8 (index 7)
 ])
+
+points_5d = np.array([
+        [1, 1, 1, 1, 1], 
+        [1, 1, 1, 1, -1], 
+        [1, 1, 1, -1, -1],
+        [1, 1, -0.5, -0.5, -1],
+        [1, np.cos(2*np.pi/5), np.cos(2*np.pi/5), np.cos(4*np.pi/5), np.cos(4*np.pi/5)], # p6 (index 5)
+        [1, -0.25, -0.25, -0.25, -0.25], 
+        [1, 1,-0.5,-0.5,-0.5], 
+        [1, 0, 0, 0, -1],
+        [1, 1,0,-1,-1],
+        [1, 0.5,-0.5,-0.5,-0.5]
+    ])
 
 # Project points to 4D
 points_4d = points_5d[:, 1:]
