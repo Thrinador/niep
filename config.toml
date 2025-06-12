@@ -1,6 +1,6 @@
 [global_data]
 # Size of the matrix to use
-n = 6
+n = 5
 # Options: 
 #  - niep, for stochastic niep;
 #  - sniep, for stochasic sniep;

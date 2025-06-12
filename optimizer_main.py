@@ -7,7 +7,7 @@ import os
 from datetime import datetime
 import json
 
-sys.setrecursionlimit(5000)
+sys.setrecursionlimit(20000)
 
 # Import tasks from other modules
 from lib import file_utils
@@ -33,6 +33,15 @@ def setup_logging(config):
 
         logger = logging.getLogger() # Get root logger
         logger.setLevel(logging.DEBUG) # Set lowest level
+
+        # Get the logger for Numba
+        numba_logger = logging.getLogger('numba')
+        # Set its level to WARNING to hide informational and debug messages
+        numba_logger.setLevel(logging.WARNING)
+
+        # It's also good practice to do the same for pathos if it becomes noisy
+        pathos_logger = logging.getLogger('pathos')
+        pathos_logger.setLevel(logging.WARNING)
 
         # Clear existing handlers (important if re-running in interactive session)
         if logger.hasHandlers():
