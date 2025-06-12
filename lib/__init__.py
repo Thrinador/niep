@@ -10,9 +10,11 @@ from . import plot_utils
 from . import niep_symbolic_minors_n3
 from . import niep_symbolic_minors_n4
 from . import niep_symbolic_minors_n5
+from . import niep_symbolic_minors_n6
 from . import sniep_symbolic_minors_n3
 from . import sniep_symbolic_minors_n4
 from . import sniep_symbolic_minors_n5
+from . import sniep_symbolic_minors_n6
 from . import sub_sniep_symbolic_minors_n3
 from . import sub_sniep_symbolic_minors_n4
 from . import sub_sniep_symbolic_minors_n5

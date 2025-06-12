@@ -7,6 +7,8 @@ import os
 from datetime import datetime
 import json
 
+sys.setrecursionlimit(5000)
+
 # Import tasks from other modules
 from lib import file_utils
 from lib import optimize_tasks
