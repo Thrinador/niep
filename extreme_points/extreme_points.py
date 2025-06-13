@@ -60,7 +60,7 @@ def find_points_outside_hull_desc_sorted_tolerant(json_file_path,
             
             for entry in data_to_process:
                 if isinstance(entry, dict) and 'eigenvalues' in entry and \
-                   isinstance(entry['eigenvalues'], list) and len(entry['eigenvalues']) == 4:
+                   isinstance(entry['eigenvalues'], list) and len(entry['eigenvalues']) == 5:
                     original_eigenvalues = entry['eigenvalues']
                     current_point_desc_sorted = sorted(original_eigenvalues, reverse=True)
                     desc_sorted_points_for_testing.append(current_point_desc_sorted)
@@ -116,21 +116,18 @@ if __name__ == '__main__':
     cos_4pi_5 = np.cos(4 * np.pi / 5)
 
     hull_points = [
-        (1, 1, 1, 1), 
-        (1, 1, 1, -1), 
-        (1, 1, -1, -1),
-        (1, 1, -0.5, -0.5), 
-        (1, -0.5, -0.5, -1),
-        (cos_2pi_5, cos_2pi_5, cos_4pi_5, cos_4pi_5),
-        (-0.25, -0.25, -0.25, -0.25), 
-        (1,-0.5,-0.5,-0.5), 
-        (0, 0, 0, -1),
-        (1,-1/3,-1/3,-1/3),
-        (1,0,-1,-1),
-        (0.5,-0.5,-0.5,-0.5)
+        (1, 1, 1, 1, 1), 
+        (1, 1, 1, 1, -1), 
+        (1, 1, 1, -1, -1),
+        (1, 1, -1, -1, -1),
+        (1, 1, -0.5, -0.5, -1), 
+        (1, cos_2pi_5, cos_2pi_5, cos_4pi_5, cos_4pi_5),
+        (-0.2, -0.2, -0.2, -0.2, -0.2), 
+        (1, 1,-0.5,-0.5,-0.5), 
+        (1,-0.5,-0.5,-0.5, -0.5),
     ]
 
-    input_filepath = '../sub_sniep/data/sub_sniep_n5_dims17_17_17.json'
+    input_filepath = '../sniep/data/sniep_n6_dims5_5_5_5.json'
     output_filepath = 'points_outside_hull.json' # Updated default name
     
     # Define your desired tolerance. 
