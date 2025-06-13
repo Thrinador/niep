@@ -41,17 +41,14 @@ def load_optimization_functions(config):
             'hess': f"calculate_S{{k}}_n{n}_hessian",
         }
 
-        # Load positive versions (for minimization of S_k)
         for k in range(1, n + 1):
             for key, pattern in patterns.items():
                 func_name = pattern.format(k=k)
                 if hasattr(symbolic_module, func_name):
                     funcs[key].append(getattr(symbolic_module, func_name))
                 else:
-                    logging.error(f"Required function {func_name} not found in {module_name}.py")
                     raise ImportError(f"Function {func_name} not found.")
 
-        # Create and append negative versions for maximization
         neg_wrapper = lambda f: (lambda x, pf=f: -pf(x))
         for key in funcs:
             positive_funcs = funcs[key][:n]
@@ -116,13 +113,13 @@ def run_function_with_const(loc, constraints, val_func, jac_func, hess_func, con
         else:
             return None
 
-        # --- NEW: Separate tolerances for each optimizer ---
-        slsqp_tol = config['optimize_data'].get('slsqp_tol', 1e-8)
-        trust_tol = config['optimize_data'].get('trust_tol', 1e-5)
-        
+        slsqp_tol = config['optimize_data']['slsqp_tol']
+        trust_tol = config['optimize_data']['trust_tol']
         total_attempts = config['optimize_data']['attempts']
-        slsqp_attempts = config['optimize_data'].get('slsqp_attempts', 5)
-        
+        slsqp_attempts = config['optimize_data']['slsqp_attempts']
+        maxiter = config['optimize_data']['maxiter']
+        log_success_every_n = config['optimize_data']['log_success_every_n']
+
         func_name = f"S{loc+1}" if loc < n else f"-S{loc-n+1}"
 
     except KeyError as e:
@@ -134,13 +131,12 @@ def run_function_with_const(loc, constraints, val_func, jac_func, hess_func, con
 
     for i in range(total_attempts):
         x0 = np.random.rand(num_variables)
-        method, options = None, None
+        method = None
         
         try:
             if i < slsqp_attempts:
-                # --- Attempt 1: Use fast SLSQP method with separate functions ---
                 method = 'SLSQP'
-                options = {'maxiter': 1000, 'ftol': slsqp_tol, 'disp': False, 'eps': 1.49e-08}
+                options = {'maxiter': maxiter, 'ftol': slsqp_tol, 'disp': False, 'eps': 1.49e-08}
                 logging.debug(f"Minimize ('{method}') for {func_name} (attempt {i+1}/{slsqp_attempts})")
                 
                 result = minimize(
@@ -148,9 +144,8 @@ def run_function_with_const(loc, constraints, val_func, jac_func, hess_func, con
                     bounds=bounds, options=options
                 )
             else:
-                # --- Attempt 2: Fallback to robust trust-constr method ---
                 method = 'trust-constr'
-                options = {'maxiter': 2000, 'gtol': trust_tol, 'disp': False}
+                options = {'maxiter': maxiter, 'gtol': trust_tol, 'disp': False}
                 logging.debug(f"Fallback to '{method}' for {func_name} (attempt {i+1-slsqp_attempts})")
 
                 result = minimize(
@@ -160,8 +155,8 @@ def run_function_with_const(loc, constraints, val_func, jac_func, hess_func, con
 
             last_result = result
             if result.success:
-                if run_count % 503 == 0:
-                    logging.info(f"Optimization successful for {func_name} with '{method}' on run number {run_count} and on attempt {i+1}.")
+                if run_count % log_success_every_n == 0:
+                    logging.info(f"Optimization successful for {func_name} with '{method}' (run {run_count}) on attempt {i+1}.")
                 return result
 
         except Exception as e:
@@ -169,7 +164,9 @@ def run_function_with_const(loc, constraints, val_func, jac_func, hess_func, con
              last_result = None
     
     logging.error(f"Optimization failed for {func_name} after {total_attempts} total attempts.")
-    logging.debug(f"Failed result {result}")
+    if last_result:
+        logging.debug(f"Final failed result object for {func_name}:\n{last_result}")
+        
     return last_result
 
 def optimize_func(loc, val_funcs, jac_funcs, hess_funcs, config, eqs=[], count=0):
@@ -214,11 +211,9 @@ def build_next_mesh(
     try:
         points_dim = config['global_data']['points_dim']
         num_new_points = points_dim[current_dim_index]
-        # Use a general tolerance for mesh comparisons, not optimizer specific
         tol = config['optimize_data'].get('slsqp_tol', 1e-8)
-        rounding_precision = config.get('optimize_data', {}).get('optimizer_rounding', None)
-        if rounding_precision is not None:
-            logging.info(f"Data cleaning enabled: rounding results to {rounding_precision} decimal places.")
+        rounding_precision = config['optimize_data']['optimizer_rounding']
+        logging.info(f"Data cleaning enabled: rounding results to {rounding_precision} decimal places.")
 
     except (KeyError, IndexError) as e:
         logging.error(f"Configuration error accessing points_dim at index {current_dim_index}: {e}")

@@ -14,9 +14,10 @@ funcs_to_optimize = [2, 3, 4]
 slsqp_tol = 1e-7
 trust_tol = 1e-5
 maxiter = 10000
-attempts = 100
-optimizer_rounding = 3
+attempts = 50
+optimizer_rounding = 4
 nlc_tol = 1e-2
+log_success_every_n = 1000
 
 [file_utils_data]
 # Sets the percision to round the data when it is saved.
