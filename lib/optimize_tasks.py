@@ -71,6 +71,11 @@ def build_matrix_constraints(config):
         if matrix_type == 'niep':
             num_variables = n**2 - n
             A = np.zeros((n, num_variables))
+            idx = 0
+            for i in range(n):
+                for j in range(n-1):
+                    A[i, idx] = 1
+                    idx += 1
         elif matrix_type == 'sniep':
             num_variables = comb(n, 2)
             A = np.zeros((n, num_variables))
@@ -85,11 +90,10 @@ def build_matrix_constraints(config):
             A = np.zeros((n, num_variables))
             idx = 0
             for i in range(n):
-                A[i, idx + i] = 1 # Diagonal
-                for j in range(i + 1, n):
-                    A[i, idx + j] = 1 # Off-diagonal
-                    A[j, idx + j] = 1
-                idx += n - i
+                for j in range(i, n):
+                    A[i, idx] = 1
+                    A[j, idx] = 1
+                    idx += 1
 
         return LinearConstraint(A, np.zeros(n), np.ones(n))
     except Exception as e:
@@ -113,10 +117,10 @@ def run_function_with_const(loc, constraints, val_func, jac_func, hess_func, con
         else:
             return None
 
-        slsqp_tol = config['optimize_data']['slsqp_tol']
-        trust_tol = config['optimize_data']['trust_tol']
-        total_attempts = config['optimize_data']['attempts']
-        slsqp_attempts = config['optimize_data']['slsqp_attempts']
+        tol_slsqp = config['optimize_data']['tol_slsqp']
+        tol_trust = config['optimize_data']['tol_trust']
+        attempts_trust = config['optimize_data']['attempts_trust']
+        attempts_slsqp = config['optimize_data']['attempts_slsqp']
         maxiter = config['optimize_data']['maxiter']
         log_success_every_n = config['optimize_data']['log_success_every_n']
 
@@ -129,24 +133,22 @@ def run_function_with_const(loc, constraints, val_func, jac_func, hess_func, con
     bounds = Bounds([0.0] * num_variables, [1.0] * num_variables)
     last_result = None
 
-    for i in range(total_attempts):
+    for i in range(attempts_slsqp + attempts_trust):
         x0 = np.random.rand(num_variables)
         method = None
         
         try:
-            if i < slsqp_attempts:
+            if i < attempts_slsqp:
                 method = 'SLSQP'
-                options = {'maxiter': maxiter, 'ftol': slsqp_tol, 'disp': False, 'eps': 1.49e-08}
-                logging.debug(f"Minimize ('{method}') for {func_name} (attempt {i+1}/{slsqp_attempts})")
-                
+                options = {'maxiter': maxiter, 'ftol': tol_slsqp, 'disp': False, 'eps': 1.49e-08}
+
                 result = minimize(
                     val_func, x0, method=method, jac=jac_func, constraints=constraints,
                     bounds=bounds, options=options
                 )
             else:
                 method = 'trust-constr'
-                options = {'maxiter': maxiter, 'gtol': trust_tol, 'disp': False}
-                logging.debug(f"Fallback to '{method}' for {func_name} (attempt {i+1-slsqp_attempts})")
+                options = {'maxiter': maxiter, 'gtol': tol_trust, 'disp': False}
 
                 result = minimize(
                     val_func, x0, method=method, jac=jac_func, hess=hess_func,
@@ -163,7 +165,7 @@ def run_function_with_const(loc, constraints, val_func, jac_func, hess_func, con
              logging.exception(f"Unexpected Error in minimize with '{method}' attempt {i+1} for {func_name}:")
              last_result = None
     
-    logging.error(f"Optimization failed for {func_name} after {total_attempts} total attempts.")
+    logging.error(f"Optimization failed for {func_name} after {attempts_slsqp + attempts_trust} total attempts.")
     if last_result:
         logging.debug(f"Final failed result object for {func_name}:\n{last_result}")
         
@@ -172,7 +174,7 @@ def run_function_with_const(loc, constraints, val_func, jac_func, hess_func, con
 def optimize_func(loc, val_funcs, jac_funcs, hess_funcs, config, eqs=[], count=0):
     """Wrapper to set up constraints and call the hybrid optimizer."""
     n = config['global_data']['n']
-    nlc_tol = config.get('optimize_data', {}).get('nlc_tol', 1e-6)
+    tol_nlc = config['optimize_data']['tol_nlc']
     constraints_list = []
 
     if eqs:
@@ -181,7 +183,7 @@ def optimize_func(loc, val_funcs, jac_funcs, hess_funcs, config, eqs=[], count=0
                 nlc_func = val_funcs[eq_func_idx]
                 nlc_jac = jac_funcs[eq_func_idx]
                 constraints_list.append(NonlinearConstraint(
-                    nlc_func, lb=eq_target_val - nlc_tol, ub=eq_target_val + nlc_tol, jac=nlc_jac
+                    nlc_func, lb=eq_target_val - tol_nlc, ub=eq_target_val + tol_nlc, jac=nlc_jac
                 ))
             else:
                  logging.error(f"Constraint function index {eq_func_idx} out of bounds.")

@@ -1,23 +1,24 @@
 [global_data]
 # Size of the matrix to use
-n = 6
+n = 5
 # Options: 
 #  - niep, for stochastic niep;
 #  - sniep, for stochasic sniep;
 #  - sub_sniep, for substochastic sniep.
-matrix_type = "sniep" 
+matrix_type = "sub_sniep" 
 # Number of sampled points for each axis.
 points_dim = [7,7,7]
 funcs_to_optimize = [2, 3, 4]
 
 [optimize_data]
-slsqp_tol = 1e-7
-trust_tol = 1e-5
-maxiter = 10000
-attempts = 50
-optimizer_rounding = 4
-nlc_tol = 1e-2
+attempts_slsqp = 20
+attempts_trust = 20
 log_success_every_n = 1000
+maxiter = 10000
+optimizer_rounding = 4
+tol_nlc = 1e-2
+tol_slsqp = 1e-7
+tol_trust = 1e-5
 
 [file_utils_data]
 # Sets the percision to round the data when it is saved.
