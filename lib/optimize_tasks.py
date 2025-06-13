@@ -24,45 +24,45 @@ def round_decimal(value: float, precision: int) -> float:
 
 def load_optimization_functions(config):
     """
-    Dynamically loads combined value-and-Jacobian functions.
+    Dynamically loads separate value, jacobian, and hessian functions.
     """
     try:
         n = config['global_data']['n']
         matrix_type = config['global_data']['matrix_type']
         module_name = f"lib.{matrix_type}_symbolic_minors_n{n}"
 
-        logging.info(f"Loading combined value/jacobian functions from module: {module_name}")
+        logging.info(f"Loading separate Value, Jacobian, & Hessian functions from module: {module_name}")
         symbolic_module = importlib.import_module(module_name)
 
-        combined_funcs = []
-        # Assuming the generator produces combined value/jac functions
-        name_pattern = f"calculate_S{{k}}_n{n}_value_and_jac"
+        funcs = {'val': [], 'jac': [], 'hess': []}
+        patterns = {
+            'val': f"calculate_S{{k}}_n{n}",
+            'jac': f"calculate_S{{k}}_n{n}_jacobian",
+            'hess': f"calculate_S{{k}}_n{n}_hessian",
+        }
 
         # Load positive versions (for minimization of S_k)
         for k in range(1, n + 1):
-            func_name = name_pattern.format(k=k)
-            if hasattr(symbolic_module, func_name):
-                combined_funcs.append(getattr(symbolic_module, func_name))
-            else:
-                logging.error(f"Required function {func_name} not found in {module_name}.py")
-                raise ImportError(f"Function {func_name} not found.")
+            for key, pattern in patterns.items():
+                func_name = pattern.format(k=k)
+                if hasattr(symbolic_module, func_name):
+                    funcs[key].append(getattr(symbolic_module, func_name))
+                else:
+                    logging.error(f"Required function {func_name} not found in {module_name}.py")
+                    raise ImportError(f"Function {func_name} not found.")
 
-        # Create and append negative versions for maximization (by minimizing -S_k)
-        neg_wrapper = lambda f: (lambda x, pf=f: (-pf(x)[0], -pf(x)[1]))
-        combined_funcs.extend([neg_wrapper(pf) for pf in combined_funcs[:n]])
+        # Create and append negative versions for maximization
+        neg_wrapper = lambda f: (lambda x, pf=f: -pf(x))
+        for key in funcs:
+            positive_funcs = funcs[key][:n]
+            funcs[key].extend([neg_wrapper(pf) for pf in positive_funcs])
 
-        logging.info(f"Successfully loaded {len(combined_funcs)} combined functions.")
-        return combined_funcs
+        logging.info(f"Successfully loaded {len(funcs['val'])} value, {len(funcs['jac'])} jacobian, and {len(funcs['hess'])} hessian functions.")
+        return funcs['val'], funcs['jac'], funcs['hess']
 
-    except ImportError as e:
-        logging.error(f"Failed to import module or function: {e}")
-        return None
-    except KeyError as e:
-        logging.error(f"Configuration missing expected key 'n' or 'global_data': {e}")
-        return None
     except Exception as e:
         logging.exception("An unexpected error occurred during function loading:")
-        return None
+        return None, None, None
 
 def build_matrix_constraints(config):
     """Builds the linear constraints for matrix row sums."""
@@ -74,11 +74,6 @@ def build_matrix_constraints(config):
         if matrix_type == 'niep':
             num_variables = n**2 - n
             A = np.zeros((n, num_variables))
-            idx = 0
-            for i in range(n):
-                for j in range(n-1):
-                    A[i, idx] = 1
-                    idx += 1
         elif matrix_type == 'sniep':
             num_variables = comb(n, 2)
             A = np.zeros((n, num_variables))
@@ -93,23 +88,20 @@ def build_matrix_constraints(config):
             A = np.zeros((n, num_variables))
             idx = 0
             for i in range(n):
-                A[i, idx + i] = 1 # Diagonal elements x_i_i
+                A[i, idx + i] = 1 # Diagonal
                 for j in range(i + 1, n):
-                    A[i, idx + j] = 1 # Off-diagonal elements x_i_j
+                    A[i, idx + j] = 1 # Off-diagonal
                     A[j, idx + j] = 1
                 idx += n - i
 
         return LinearConstraint(A, np.zeros(n), np.ones(n))
-    except KeyError as e:
-        logging.error(f"Config missing 'n' for matrix constraints: {e}")
-        return None
     except Exception as e:
         logging.exception("Error building matrix constraints:")
         return None
 
-def run_function_with_const(loc, constraints, combined_func, config, run_count=0):
+def run_function_with_const(loc, constraints, val_func, jac_func, hess_func, config, run_count=0):
     """
-    Runs scipy.optimize.minimize with 'SLSQP' using a combined function.
+    Runs a hybrid optimization strategy: tries SLSQP first, then falls back to trust-constr.
     """
     try:
         n = config['global_data']['n']
@@ -122,70 +114,75 @@ def run_function_with_const(loc, constraints, combined_func, config, run_count=0
         elif matrix_type == 'sub_sniep':
             num_variables = comb(n+1, 2)
         else:
-            logging.error(f"Incorrect matrix types in config: {matrix_type}")
             return None
 
-        tol = config['optimize_data']['tol']
-        maxiter = config['optimize_data']['maxiter']
-        attempts = config['optimize_data']['attempts']
-
+        # --- NEW: Separate tolerances for each optimizer ---
+        slsqp_tol = config['optimize_data'].get('slsqp_tol', 1e-8)
+        trust_tol = config['optimize_data'].get('trust_tol', 1e-5)
+        
+        total_attempts = config['optimize_data']['attempts']
+        slsqp_attempts = config['optimize_data'].get('slsqp_attempts', 5)
+        
         func_name = f"S{loc+1}" if loc < n else f"-S{loc-n+1}"
-        logging.debug(
-            f"Minimize ('SLSQP') for {func_name} (run {run_count}): ftol={tol}, maxiter={maxiter}, attempts={attempts}"
-        )
 
     except KeyError as e:
         logging.error(f"Config missing key for run_function_with_const setup: {e}")
         return None
 
     bounds = Bounds([0.0] * num_variables, [1.0] * num_variables)
-
     last_result = None
-    for i in range(attempts):
+
+    for i in range(total_attempts):
         x0 = np.random.rand(num_variables)
+        method, options = None, None
+        
         try:
-            result = minimize(
-                combined_func, x0, method='SLSQP', jac=True, constraints=constraints,
-                bounds=bounds, options={'maxiter': maxiter, 'ftol': tol, 'disp': False,
-                                        'eps': 1.49e-08} # <-- ADDED for stability
-            )
+            if i < slsqp_attempts:
+                # --- Attempt 1: Use fast SLSQP method with separate functions ---
+                method = 'SLSQP'
+                options = {'maxiter': 1000, 'ftol': slsqp_tol, 'disp': False, 'eps': 1.49e-08}
+                logging.debug(f"Minimize ('{method}') for {func_name} (attempt {i+1}/{slsqp_attempts})")
+                
+                result = minimize(
+                    val_func, x0, method=method, jac=jac_func, constraints=constraints,
+                    bounds=bounds, options=options
+                )
+            else:
+                # --- Attempt 2: Fallback to robust trust-constr method ---
+                method = 'trust-constr'
+                options = {'maxiter': 2000, 'gtol': trust_tol, 'disp': False}
+                logging.debug(f"Fallback to '{method}' for {func_name} (attempt {i+1-slsqp_attempts})")
+
+                result = minimize(
+                    val_func, x0, method=method, jac=jac_func, hess=hess_func,
+                    constraints=constraints, bounds=bounds, options=options
+                )
+
             last_result = result
             if result.success:
                 if run_count % 503 == 0:
-                    logging.info(f"Optimization successful for {func_name} run={run_count} on attempt {i+1}.")
-                    logging.debug(f"Success result for {func_name} (run {run_count}):\n{result}")
+                    logging.info(f"Optimization successful for {func_name} with '{method}' on run number {run_count} and on attempt {i+1}.")
                 return result
-        except (ValueError, TypeError) as e:
-             logging.exception(f"Error during minimize attempt {i+1} for {func_name} run={run_count}: {e}")
-             last_result = None; break
+
         except Exception as e:
-             logging.exception(f"Unexpected Error in minimize attempt {i+1} for {func_name} run={run_count}:")
+             logging.exception(f"Unexpected Error in minimize with '{method}' attempt {i+1} for {func_name}:")
              last_result = None
-
-    if last_result is None or not last_result.success:
-        logging.error(f"Optimization failed for {func_name} run={run_count} after {attempts} attempts.")
-        logging.debug(f"Failed result for {func_name} (run {run_count}):\n{result}")
-        if last_result is None:
-            logging.error(f"All attempts failed critically for {func_name} run={run_count}.")
-
+    
+    logging.error(f"Optimization failed for {func_name} after {total_attempts} total attempts.")
+    logging.debug(f"Failed result {result}")
     return last_result
 
-def optimize_func(loc, combined_funcs, config, eqs=[], count=0):
-    """Wrapper to set up constraints and call the optimizer."""
+def optimize_func(loc, val_funcs, jac_funcs, hess_funcs, config, eqs=[], count=0):
+    """Wrapper to set up constraints and call the hybrid optimizer."""
     n = config['global_data']['n']
-    # --- NEW: Get separate, larger tolerance for nonlinear constraints ---
-    # Defaults to a reasonable 1e-6 if not specified in config
     nlc_tol = config.get('optimize_data', {}).get('nlc_tol', 1e-6)
-
-    func_name = f"S{loc+1}" if loc < n else f"-S{loc-n+1}"
     constraints_list = []
 
     if eqs:
         for eq_func_idx, eq_target_val in eqs:
-            if 0 <= eq_func_idx < len(combined_funcs):
-                nlc_func = lambda x, idx=eq_func_idx: combined_funcs[idx](x)[0]
-                nlc_jac = lambda x, idx=eq_func_idx: combined_funcs[idx](x)[1]
-                # --- NEW: Use the larger nlc_tol to create a "band" constraint ---
+            if 0 <= eq_func_idx < len(val_funcs):
+                nlc_func = val_funcs[eq_func_idx]
+                nlc_jac = jac_funcs[eq_func_idx]
                 constraints_list.append(NonlinearConstraint(
                     nlc_func, lb=eq_target_val - nlc_tol, ub=eq_target_val + nlc_tol, jac=nlc_jac
                 ))
@@ -197,14 +194,13 @@ def optimize_func(loc, combined_funcs, config, eqs=[], count=0):
         constraints_list.append(linear_constraints)
 
     return run_function_with_const(
-        loc, constraints_list, combined_funcs[loc], config, count
+        loc, constraints_list, val_funcs[loc], jac_funcs[loc], hess_funcs[loc], config, count
     )
 
 def _optimize_func_parallel_wrapper(args):
     """Helper for pathos.Pool.imap."""
-    loc, combined_funcs, config, eqs, count = args
-    return optimize_func(loc, combined_funcs, config, eqs, count)
-
+    loc, val_funcs, jac_funcs, hess_funcs, config, eqs, count = args
+    return optimize_func(loc, val_funcs, jac_funcs, hess_funcs, config, eqs, count)
 
 def build_next_mesh(
     previous_mesh_points: List[Tuple[float, ...]],
@@ -218,7 +214,8 @@ def build_next_mesh(
     try:
         points_dim = config['global_data']['points_dim']
         num_new_points = points_dim[current_dim_index]
-        tol = config['optimize_data']['tol']
+        # Use a general tolerance for mesh comparisons, not optimizer specific
+        tol = config['optimize_data'].get('slsqp_tol', 1e-8)
         rounding_precision = config.get('optimize_data', {}).get('optimizer_rounding', None)
         if rounding_precision is not None:
             logging.info(f"Data cleaning enabled: rounding results to {rounding_precision} decimal places.")
@@ -271,20 +268,19 @@ def build_next_mesh(
                  next_mesh_points.append(prev_point_coords + (new_val,))
 
     if not next_mesh_points:
-         logging.warning(f"Mesh generation yielded no points (from {valid_source_count}/{len(previous_mesh_points)} valid sources).")
+         logging.warning(f"Mesh generation yielded no points.")
          return []
 
     logging.info(f"Built mesh for dimension {current_dim_index + 2} with {len(next_mesh_points)} points.")
     return next_mesh_points
 
-
 def optimize_constrained_dimension(
     mesh_points: List[Tuple[float, ...]],
-    combined_funcs: List, config: Dict,
+    val_funcs: List, jac_funcs: List, hess_funcs: List, config: Dict,
     constraint_func_indices: List[int], optimize_func_idx: int,
     dimension_label: str
 ) -> Tuple[Optional[List[Any]], Optional[List[Any]]]:
-    """Runs min/max optimization for a target function, constrained by values at mesh points."""
+    """Runs min/max optimization, passing all three function lists."""
     n = config['global_data']['n']
     if mesh_points is None: return None, None
     if not mesh_points: return [], []
@@ -295,8 +291,8 @@ def optimize_constrained_dimension(
     
     for i, point_coords in enumerate(mesh_points):
         constraints_for_point = list(zip(constraint_func_indices, point_coords))
-        all_args.append((min_opt_loc, combined_funcs, config, constraints_for_point, i))
-        all_args.append((max_opt_loc, combined_funcs, config, constraints_for_point, i))
+        all_args.append((min_opt_loc, val_funcs, jac_funcs, hess_funcs, config, constraints_for_point, i))
+        all_args.append((max_opt_loc, val_funcs, jac_funcs, hess_funcs, config, constraints_for_point, i))
 
     logging.info(f"Starting parallel optimization for {dimension_label}...")
     with Pool() as pool:
@@ -307,11 +303,10 @@ def optimize_constrained_dimension(
         
     return final_min_results, final_max_results
 
-
 def process_optimization_result(
     result: Any, result_type: str, constraint_labels_values: Dict[str, float], optimized_label: str
 ) -> Optional[Dict]:
-    """Helper to create the labeled dictionary from a SUCCESSFUL optimization result."""
+    """Creates a labeled dictionary from a SUCCESSFUL optimization result."""
     if not (result and getattr(result, 'success', False)):
         return None
 
@@ -323,14 +318,13 @@ def process_optimization_result(
     matrix_data = result.x.tolist() if hasattr(result, 'x') else None
     return {"type": result_type, "coefficients": coefficients, "matrix": matrix_data}
 
-
 def run_optimization(config):
     """Main entry point for the entire optimization process."""
     logging.info("Starting generalized optimization process...")
     start_overall_time = time.perf_counter()
 
-    combined_funcs = load_optimization_functions(config)
-    if combined_funcs is None:
+    val_funcs, jac_funcs, hess_funcs = load_optimization_functions(config)
+    if val_funcs is None:
         logging.error("Failed to load optimization functions. Aborting.")
         return None
 
@@ -349,18 +343,12 @@ def run_optimization(config):
         logging.error(f"Config missing key in 'global_data': {e}")
         return None
 
-    # --- Initialization: First dimension ---
+    # --- Initialization ---
     num_x_points = points_dim[0]
     if num_x_points < 1: num_x_points = 1
-    
-    if num_x_points == 1:
-         x_values = np.array([float(n) / 2.0])
-    else:
-        x_values = np.linspace(0.0, float(n), num_x_points)
-    
+    x_values = np.linspace(0.0, float(n), num_x_points) if num_x_points > 1 else np.array([float(n) / 2.0])
     current_mesh_points = [(x,) for x in x_values]
 
-    min_results, max_results = None, None
     last_successful_stage = 0
     num_stages = len(funcs_to_optimize_config)
 
@@ -375,7 +363,7 @@ def run_optimization(config):
 
         min_results, max_results = optimize_constrained_dimension(
             mesh_points=current_mesh_points,
-            combined_funcs=combined_funcs,
+            val_funcs=val_funcs, jac_funcs=jac_funcs, hess_funcs=hess_funcs,
             config=config,
             constraint_func_indices=constraint_indices,
             optimize_func_idx=optimize_index,

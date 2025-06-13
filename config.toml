@@ -1,6 +1,6 @@
 [global_data]
 # Size of the matrix to use
-n = 5
+n = 6
 # Options: 
 #  - niep, for stochastic niep;
 #  - sniep, for stochasic sniep;
@@ -11,9 +11,10 @@ points_dim = [7,7,7]
 funcs_to_optimize = [2, 3, 4]
 
 [optimize_data]
-tol = 1e-7
+slsqp_tol = 1e-7
+trust_tol = 1e-5
 maxiter = 10000
-attempts = 1000
+attempts = 100
 optimizer_rounding = 3
 nlc_tol = 1e-2
 
