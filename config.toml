@@ -1,19 +1,19 @@
 [global_data]
 # Size of the matrix to use
-n = 5
+n = 6
 # Options: 
 #  - niep, for stochastic niep;
 #  - sniep, for stochasic sniep;
 #  - sub_sniep, for substochastic sniep.
-matrix_type = "sub_sniep" 
+matrix_type = "sniep" 
 # Number of sampled points for each axis.
-points_dim = [7,7,7]
-funcs_to_optimize = [2, 3, 4]
+points_dim = [11,11,11,11]
+funcs_to_optimize = [2, 3, 4,5]
 
 [optimize_data]
 attempts_slsqp = 20
 attempts_trust = 20
-log_success_every_n = 1000
+log_success_every_n = 500
 maxiter = 10000
 optimizer_rounding = 4
 tol_nlc = 1e-2
