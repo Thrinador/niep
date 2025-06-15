@@ -107,18 +107,18 @@ if __name__ == '__main__':
     cos_4pi_5 = np.cos(4 * np.pi / 5)  # approx -0.809016994
 
     # Your updated list of 4D points
-    user_points = [
-        (1, 1, 1, 1), 
-        (1, 1, 1, -1), 
-        (1, 1, -1, -1),
-        (1, -0.5, -0.5, -1),
-        (cos_2pi_5, cos_2pi_5, cos_4pi_5, cos_4pi_5),
-        (-0.25, -0.25, -0.25, -0.25), 
-        (1,-0.5,-0.5,-0.5), 
-        (0, 0, 0, -1),
-        (1,0,-1,-1),
-        (0.5,-0.5,-0.5,-0.5),
-        (1,-1/3, -1/3, -1/3)
+    hull_points = [
+        (1, 1, 1, 1, 1), 
+        (1, 1, 1, 1, -1), 
+        (1, 1, 1, -1, -1),
+        (1, 1, -1, -1, -1),
+        (-0.2, -0.2, -0.2, -0.2, -0.2), 
+        (1,-0.5,-0.5,-0.5, -0.5),
+        (0,0,0,0,-1),
+        (1,0,0,-1,-1),
+        (1,-1/3,-1/3,-1/3,-1),
+        (0.25, 0.25, 0, -0.75, -0.75),
+        (1, 0.25, 0.25, -0.75, -0.75)
     ]
     
     print("Checking for necessary extreme points (vertices) in the provided list:")
@@ -127,7 +127,7 @@ if __name__ == '__main__':
     # A small positive tolerance is used for checking point inclusion.
     # This helps manage floating-point inaccuracies.
     # Adjust if your data has specific precision characteristics.
-    results_summary = check_necessary_extreme_points(user_points, tolerance=1e-9)
+    results_summary = check_necessary_extreme_points(hull_points, tolerance=1e-9)
     
     print("\n--- Summary of Results ---")
     if not results_summary or any("Error" in key for key in results_summary):

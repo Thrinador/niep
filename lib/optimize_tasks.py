@@ -122,7 +122,7 @@ def run_function_with_const(loc, constraints, val_func, jac_func, hess_func, con
         attempts_trust = config['optimize_data']['attempts_trust']
         attempts_slsqp = config['optimize_data']['attempts_slsqp']
         maxiter = config['optimize_data']['maxiter']
-        log_success_every_n = config['optimize_data']['log_success_every_n']
+        log_every_n = config['optimize_data']['log_every_n']
 
         func_name = f"S{loc+1}" if loc < n else f"-S{loc-n+1}"
 
@@ -157,7 +157,7 @@ def run_function_with_const(loc, constraints, val_func, jac_func, hess_func, con
 
             last_result = result
             if result.success:
-                if run_count % log_success_every_n == 0:
+                if run_count % log_every_n == 0:
                     logging.info(f"Optimization successful for {func_name} with '{method}' (run {run_count}) on attempt {i+1}.")
                 return result
 
