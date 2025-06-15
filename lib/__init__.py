@@ -8,6 +8,9 @@ from . import eigenvalue_tasks
 from . import plot_utils
 
 # Auto-generated symbolic modules
+from . import niep_symbolic_minors_n3
+from . import niep_symbolic_minors_n4
+from . import niep_symbolic_minors_n5
 from . import sniep_symbolic_minors_n3
 from . import sniep_symbolic_minors_n4
 from . import sniep_symbolic_minors_n5
