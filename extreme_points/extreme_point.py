@@ -33,13 +33,6 @@ from scipy.spatial import QhullError
 from scipy.optimize import linprog
 from collections import defaultdict
 
-# -----------------------------------------------------------------------------
-# SCRIPT CONFIGURATION
-# -----------------------------------------------------------------------------
-
-# --- Main Inputs ---
-
-# 1. The list of points intended to define the convex hull.
 HULL_DEFINING_POINTS = [
     (1, 1, 1, 1, 1),
     (1, 1, 1, 1, -1),
@@ -53,16 +46,8 @@ HULL_DEFINING_POINTS = [
     (0.25, 0.25, 0, -0.75, -0.75),
     (1, 0.25, 0.25, -0.75, -0.75)
 ]
-
-# 2. Path to the JSON file with points to check against the hull.
 POINTS_TO_CHECK_JSON_PATH = '../sub_sniep/data/sub_sniep_n6_dims11_11_11_11.json'
-
-# 3. The number of furthest points to find and display.
 NUM_FURTHEST_POINTS_TO_DISPLAY = 5
-
-# --- Technical Parameters ---
-
-# Tolerance for floating point comparisons.
 TOLERANCE = 1e-5
 
 
@@ -101,8 +86,8 @@ def find_furthest_external_points(json_file_path, hull_points_list, num_furthest
     """
     Identifies and ranks points from a JSON file that are outside a given convex hull.
     """
-    print(f"-> Searching for the {num_furthest} furthest points outside the hull...")
-    print(f"   Using input file: {json_file_path}")
+    print(f"Searching for the {num_furthest} furthest points outside the hull...")
+    print(f"Using input file: {json_file_path}")
     try:
         hull = ConvexHull(np.array(hull_points_list), qhull_options='QJ')
     except (QhullError, ValueError) as e:
@@ -178,9 +163,9 @@ def characterize_exposed_facets(hull_points_list, point_labels):
         eq_parts = [f"{c:+.{decimals-2}f}*x{j+1}" for j, c in enumerate(coeffs) if not np.isclose(c, 0)]
         eq_str = " + ".join(eq_parts).replace("+ -", "- ")
         
-        desc = (f"   - Facet {facet_counter}:\n"
-                f"     - Equation (approx): {eq_str} <= {-offset:.{decimals}f}\n"
-                f"     - Vertices: {{{', '.join(detail['vertices'])}}}")
+        desc = (f"- Facet {facet_counter}:\n"
+                f"  - Equation (approx): {eq_str} <= {-offset:.{decimals}f}\n"
+                f"  - Vertices: {{{', '.join(detail['vertices'])}}}")
         final_descriptions.append(desc)
         
     return final_descriptions
@@ -216,42 +201,46 @@ if __name__ == '__main__':
     print("      Convex Hull Analysis Starting")
     print("=====================================================")
 
+    # --- STEP 1: Analysis of Hull Defining Points ---
     necessary_points, redundant_points_info = classify_hull_points(HULL_DEFINING_POINTS)
 
     if not necessary_points or len(necessary_points) < len(HULL_DEFINING_POINTS[0]) + 1:
         print("\nAnalysis HALTED: Not enough necessary points found to define a valid hull.")
-    else:
-        # --- STEP 1: Analysis of Hull Defining Points ---
-        print("\n--- [Step 1: Analysis of Hull Defining Points] ---")
-        necessary_point_labels = {pt: f"P{i+1}" for i, pt in enumerate(necessary_points)}
-        
-        for point in HULL_DEFINING_POINTS:
-            if point in redundant_points_info:
-                print(f"-> Point {point}: REDUNDANT")
-                express_as_convex_combination(point, necessary_points, necessary_point_labels)
-            else:
-                label = necessary_point_labels.get(point, "??")
-                print(f"-> Point {point} ({label}): NECESSARY\n")
+        quit()
 
-        # --- STEP 2: Finding External Points ---
-        print("\n--- [Step 2: Finding External Points from JSON] ---")
-        furthest_points = find_furthest_external_points(
-            POINTS_TO_CHECK_JSON_PATH, necessary_points, NUM_FURTHEST_POINTS_TO_DISPLAY
-        )
-        if furthest_points:
-            print(f"\n   Top {len(furthest_points)} furthest points found:")
-            for i, (dist, data) in enumerate(furthest_points):
-                print(f"     {i+1}. Distance = {dist:.6f}, Point Eigenvalues = {data['eigenvalues']}")
-        
-        # --- STEP 3: Characterizing the Exposed Hull Facets ---
-        print("\n--- [Step 3: Characterizing the Exposed Hull Facets] ---")
-        print("   (Using only the necessary vertices, the following sorted facets of the convex hull were found)")
-        facet_descriptions = characterize_exposed_facets(necessary_points, necessary_point_labels)
-        if facet_descriptions:
-            print(f"\n   Found {len(facet_descriptions)} unique facets:")
-            for desc in facet_descriptions: print(desc)
-        else:
-             print("\n   Could not characterize hull facets.")
+    print("\n--- [Step 1: Analysis of Hull Defining Points] ---")
+    necessary_point_labels = {pt: f"P{i+1}" for i, pt in enumerate(necessary_points)}
+    
+    print("Necessary points are:")
+    for point in HULL_DEFINING_POINTS:
+        if not point in redundant_points_info:
+            label = necessary_point_labels.get(point, "??")
+            print(f"-> Point {label} {point}")
+    print()
+    print ("Redundant points are:")
+    for point in HULL_DEFINING_POINTS:
+        if point in redundant_points_info:
+            print(f"-> Point {point}")
+            express_as_convex_combination(point, necessary_points, necessary_point_labels)
+
+    # --- STEP 2: Finding External Points ---
+    print("\n--- [Step 2: Finding External Points from JSON] ---")
+    furthest_points = find_furthest_external_points(
+        POINTS_TO_CHECK_JSON_PATH, necessary_points, NUM_FURTHEST_POINTS_TO_DISPLAY
+    )
+    if furthest_points:
+        print(f"\nTop {len(furthest_points)} furthest points found:")
+        for i, (dist, data) in enumerate(furthest_points):
+            print(f"  {i+1}. Distance = {dist:.6f}, Point Eigenvalues = {data['eigenvalues']}")
+    
+    # --- STEP 3: Characterizing the Exposed Hull Facets ---
+    print("\n--- [Step 3: Characterizing the Exposed Hull Facets] ---")
+    facet_descriptions = characterize_exposed_facets(necessary_points, necessary_point_labels)
+    if facet_descriptions:
+        print(f"\nFound {len(facet_descriptions)} unique facets:")
+        for desc in facet_descriptions: print(desc)
+    else:
+            print("\nCould not characterize hull facets.")
 
     print("\n=====================================================")
     print("      Convex Hull Analysis Complete")
