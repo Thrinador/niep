@@ -5,7 +5,7 @@ from scipy.optimize import (
     minimize,
     Bounds,
 )
-from math import comb
+from math import comb, ceil
 import importlib
 import logging
 import time
@@ -208,67 +208,93 @@ def build_next_mesh(
     config: Dict,
     current_dim_index: int
 ) -> Optional[List[Tuple[float, ...]]]:
-    """Builds mesh points for the next dimension, with optional data cleaning."""
-    logging.info(f"Building mesh for dimension {current_dim_index + 2}...")
+    """
+    Builds a dynamic mesh for the next dimension.
+    The number of points for each new line is scaled based on its length relative
+    to the longest line in the set.
+    """
+    logging.info(f"Building dynamic mesh for dimension {current_dim_index + 2}...")
     try:
-        points_dim = config['global_data']['points_dim']
-        num_new_points = points_dim[current_dim_index]
+        # This is now the *maximum* number of points for the longest line.
+        max_points_per_line = config['global_data']['points_dim'][current_dim_index]
         tol = config['optimize_data'].get('slsqp_tol', 1e-8)
         rounding_precision = config['optimize_data']['optimizer_rounding']
-        logging.info(f"Data cleaning enabled: rounding results to {rounding_precision} decimal places.")
-
     except (KeyError, IndexError) as e:
-        logging.error(f"Configuration error accessing points_dim at index {current_dim_index}: {e}")
+        logging.error(f"Config error accessing points_dim at index {current_dim_index}: {e}")
         return None
-
-    next_mesh_points = []
-    valid_source_count = 0
 
     if len(previous_mesh_points) != len(min_results) or len(previous_mesh_points) != len(max_results):
-        logging.error(f"Mismatched input lengths in build_next_mesh.")
+        logging.error("Mismatched input lengths in build_next_mesh.")
         return None
 
-    for i, prev_point_coords in enumerate(previous_mesh_points):
+    # --- Pass 1: Pre-process results to find all min/max ranges and their distances ---
+    processed_ranges = []
+    for i in range(len(previous_mesh_points)):
         min_res, max_res = min_results[i], max_results[i]
 
         is_valid = (min_res and max_res and getattr(min_res, 'success', False) and getattr(max_res, 'success', False))
         if not is_valid:
-             logging.warning(f"Invalid/unsuccessful source result at index {i}. Skipping point for next mesh.")
-             continue
+            processed_ranges.append(None)  # Add placeholder to maintain index alignment
+            continue
 
-        min_val = min_res.fun
-        max_val = -max_res.fun
+        min_val = round_decimal(min_res.fun, rounding_precision)
+        max_val = round_decimal(-max_res.fun, rounding_precision)
 
-        if rounding_precision is not None:
-            min_val = round_decimal(min_val, rounding_precision)
-            max_val = round_decimal(max_val, rounding_precision)
-
+        # Clamp values if min > max after rounding, which can happen with small tolerances
         if min_val > max_val:
             if np.isclose(min_val, max_val, atol=tol):
                 min_val = max_val
             else:
-                 logging.warning(f"Cleaned max value ({max_val:.4f}) < min value ({min_val:.4f}). Clamping to min_val.")
-                 max_val = min_val
+                logging.warning(f"Cleaned max value ({max_val:.4f}) < min value ({min_val:.4f}). Clamping to min_val.")
+                max_val = min_val
         
-        if np.isclose(min_val, max_val, atol=tol):
-            new_dim_vals = np.full(num_new_points, min_val)
-        elif num_new_points >= 2:
-            new_dim_vals = np.linspace(min_val, max_val, num_new_points)
-        elif num_new_points == 1:
+        processed_ranges.append({'min': min_val, 'max': max_val, 'distance': max_val - min_val})
+
+    # Find the maximum distance among all valid lines to use as a benchmark
+    valid_distances = [r['distance'] for r in processed_ranges if r is not None]
+    max_distance = max(valid_distances) if valid_distances else 0.0
+    logging.info(f"Max distance for scaling new mesh points is {max_distance:.6f}")
+
+    # --- Pass 2: Build the new mesh points with dynamically scaled point counts ---
+    next_mesh_points = []
+    total_new_points = 0
+    for i, prev_point_coords in enumerate(previous_mesh_points):
+        range_info = processed_ranges[i]
+        
+        if range_info is None:
+            logging.warning(f"Skipping mesh generation for source point {i} due to invalid/unsuccessful result.")
+            continue
+        
+        min_val, max_val, distance = range_info['min'], range_info['max'], range_info['distance']
+        
+        num_new_points = 0
+        if np.isclose(distance, 0, atol=tol):
+            # If the distance is zero, only one point is needed
+            num_new_points = 1
+        elif max_distance > 0:
+            # Scale points based on this line's distance relative to the max distance
+            num_new_points = ceil((distance / max_distance) * max_points_per_line)
+            # Ensure at least 2 points for any non-zero distance line
+            if num_new_points < 2:
+                num_new_points = 2
+        else: # This covers max_distance == 0, so all distances are effectively 0
+            num_new_points = 1
+            
+        # Generate the coordinate values for the new dimension
+        if num_new_points == 1:
             new_dim_vals = np.array([(min_val + max_val) / 2.0])
         else:
-            new_dim_vals = np.array([])
+            new_dim_vals = np.linspace(min_val, max_val, int(num_new_points))
 
-        if new_dim_vals.size > 0:
-             valid_source_count += 1
-             for new_val in new_dim_vals:
-                 next_mesh_points.append(prev_point_coords + (new_val,))
+        total_new_points += len(new_dim_vals)
+        for new_val in new_dim_vals:
+            next_mesh_points.append(prev_point_coords + (new_val,))
 
     if not next_mesh_points:
-         logging.warning(f"Mesh generation yielded no points.")
-         return []
+        logging.warning("Mesh generation for the next dimension yielded no points.")
+        return []
 
-    logging.info(f"Built mesh for dimension {current_dim_index + 2} with {len(next_mesh_points)} points.")
+    logging.info(f"Built mesh for dimension {current_dim_index + 2} with {len(next_mesh_points)} points from {len(valid_distances)} valid sources.")
     return next_mesh_points
 
 def optimize_constrained_dimension(

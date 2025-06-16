@@ -13,6 +13,7 @@ sys.setrecursionlimit(20000)
 from lib import file_utils
 from lib import optimize_tasks
 from lib import eigenvalue_tasks
+from lib import plot_utils
 
 def setup_logging(config):
     """Configures logging based on config and timestamp."""
@@ -127,7 +128,12 @@ if __name__ == '__main__':
         logging.error("Optimization failed. No final file saved.")
         save_status = False
 
-    # 4. Report Final Status
+    # 4. Run plotting
+    if config['global_data']['plot_with_optimize']:
+        logging.info("===== Starting Plotting Phase =====")
+        plot_utils.run_plotting(config)
+
+    # 5. Report Final Status
     main_end_time = time.perf_counter()
     total_time = main_end_time - main_start_time
     logging.info("===== Script Execution Finished =====")
