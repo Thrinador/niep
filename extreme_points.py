@@ -1,37 +1,46 @@
 #
 # -----------------------------------------------------------------------------
 #
-# CONVEX HULL ANALYSIS SCRIPT
+# CONVEX HULL ANALYSIS SCRIPT (WITH PERMUTATION SUPPORT)
 #
 # -----------------------------------------------------------------------------
 #
 # Description:
 #   This script performs a comprehensive analysis of a set of points in relation
 #   to their convex hull. This version includes a final correction to the
-#   facet sorting logic to ensure it is purely numerical.
+#   facet sorting logic to ensure it is purely numerical. It also introduces
+#   a `USE_PERMUTATIONS` flag to analyze the hull of all permutations of the
+#   input points.
 #
 # Workflow:
+#   0.  Point Generation: If `USE_PERMUTATIONS` is True, generate all unique
+#       permutations of the initial points.
 #   1.  Analysis of Hull Defining Points: Iterates through the initial points,
-#       reporting if each is NECESSARY (a vertex) or REDUNDANT (internal).
-#       Redundant points are immediately expressed as a convex combination of
-#       the necessary vertices.
+#       reporting if each is NECESSARY (a vertex) or REDUNDANT (internal)
+#       relative to the (potentially permuted) hull. Redundant points are
+#       immediately expressed as a convex combination of the necessary vertices.
 #   2.  External Point Identification: Finds points from an external JSON file
 #       that lie outside the convex hull.
 #   3.  Furthest Point Reporting: Ranks and reports the top N furthest
 #       external points.
 #   4.  Exposed Facet Characterization: Using only the necessary vertices, it
-#       identifies all exposed facets of the hull, sorts the facets themselves
-#       into a canonical numerical order, and prints their descriptions.
+#       identifies all exposed facets of the hull, sorts them into a canonical
+#       order, and prints their descriptions.
 #
 # -----------------------------------------------------------------------------
 
 import numpy as np
 import json
 import os
-from scipy.spatial import ConvexHull
-from scipy.spatial import QhullError
+from scipy.spatial import ConvexHull, QhullError
 from scipy.optimize import linprog
 from collections import defaultdict
+import itertools
+
+# --- CONFIGURATION ---
+# Set to True to use all permutations of HULL_DEFINING_POINTS
+# Set to False to use only the points as written (ordered case)
+USE_PERMUTATIONS = True
 
 HULL_DEFINING_POINTS = [
     (1, 1, 1, 1, 1),
@@ -199,27 +208,53 @@ if __name__ == '__main__':
     print("      Convex Hull Analysis Starting")
     print("=====================================================")
 
+    # --- STEP 0: Point Generation (Ordered vs. Unordered) ---
+    if USE_PERMUTATIONS:
+        print("Mode: Unordered (using all unique permutations of input points)")
+        permuted_points_set = set()
+        for point in HULL_DEFINING_POINTS:
+            # Generate all unique permutations for the current point
+            perms = set(itertools.permutations(point))
+            permuted_points_set.update(perms)
+        analysis_points = list(permuted_points_set)
+        print(f"Generated {len(analysis_points)} unique points from {len(HULL_DEFINING_POINTS)} base points.")
+    else:
+        print("Mode: Ordered (using input points as is)")
+        analysis_points = HULL_DEFINING_POINTS
+        print(f"Using {len(analysis_points)} specified points.")
+
+
     # --- STEP 1: Analysis of Hull Defining Points ---
-    necessary_points, redundant_points_info = classify_hull_points(HULL_DEFINING_POINTS)
+    # Determine the vertices (necessary points) from the full analysis set
+    necessary_points, _ = classify_hull_points(analysis_points)
+    
+    # Create a set of necessary points for efficient lookup
+    necessary_points_set = set(necessary_points)
 
     if not necessary_points or len(necessary_points) < len(HULL_DEFINING_POINTS[0]) + 1:
         print("\nAnalysis HALTED: Not enough necessary points found to define a valid hull.")
         quit()
 
     print("\n--- [Step 1: Analysis of Hull Defining Points] ---")
+    # Assign labels only to the true vertices of the final hull
     necessary_point_labels = {pt: f"P{i+1}" for i, pt in enumerate(necessary_points)}
     
-    print("Necessary points are:")
+    print("Necessary points (vertices of the final hull):")
+    # We check the ORIGINAL points against the derived necessary set
     for point in HULL_DEFINING_POINTS:
-        if not point in redundant_points_info:
+        if point in necessary_points_set:
             label = necessary_point_labels.get(point, "??")
             print(f"-> Point {label} {point}")
-    print()
-    print ("Redundant points are:")
+            
+    print(f"\nTotal necessary vertices found: {len(necessary_points)}\n")
+
+    print ("Redundant points (relative to the final hull):")
+    # Identify which of the ORIGINAL points are redundant
     for point in HULL_DEFINING_POINTS:
-        if point in redundant_points_info:
+        if point not in necessary_points_set:
             print(f"-> Point {point}")
             express_as_convex_combination(point, necessary_points, necessary_point_labels)
+
 
     # --- STEP 2: Finding External Points ---
     print("\n--- [Step 2: Finding External Points from JSON] ---")
@@ -238,7 +273,7 @@ if __name__ == '__main__':
         print(f"\nFound {len(facet_descriptions)} unique facets:")
         for desc in facet_descriptions: print(desc)
     else:
-            print("\nCould not characterize hull facets.")
+        print("\nCould not characterize hull facets.")
 
     print("\n=====================================================")
     print("      Convex Hull Analysis Complete")
