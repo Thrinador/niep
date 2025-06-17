@@ -111,7 +111,7 @@ if __name__ == '__main__':
     # 3. Save Final Results (if eigenvalue computation succeeded)
     if final_results is not None:
         logging.info("===== Saving Final Combined Results =====")
-        output_filename = file_utils.build_file_name(config) # Get the single filename
+        output_filename = file_utils.build_file_name(config)
         if output_filename:
             save_status = file_utils.save_results(config, final_results, output_filename)
             if not save_status:

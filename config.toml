@@ -1,14 +1,14 @@
 [global_data]
 # Size of the matrix to use
-n = 5
+n = 6
 # Options: 
 #  - niep, for stochastic niep;
 #  - sniep, for stochasic sniep;
 #  - sub_sniep, for substochastic sniep.
 matrix_type = "sub_sniep" 
 # Number of sampled points for each axis.
-points_dim = [30,30, 30]
-funcs_to_optimize = [2, 3, 4]
+points_dim = [11,11,11,11]
+funcs_to_optimize = [2, 3, 4,5]
 plot_with_optimize = true
 
 [optimize_data]
@@ -27,5 +27,14 @@ decimal_precision = 3
 
 [plot_data]
 plot_tolerance = 1e-3
-num_eigenvalue_slices = 5
-slice_tolerance = 0.05
+num_animation_frames = 5
+data_location = ""
+
+[extreme_points_data]
+use_permutations = false
+points_to_check_path = ""
+num_furthest_points = 5
+tolerance = 1e-5
+hull_points_path = "extreme_points/point_sets.json"
+hull_points_set_name = ""
+external_points_output_path = "extreme_points/points_outside_hull.json"

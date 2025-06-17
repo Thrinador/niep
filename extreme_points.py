@@ -1,66 +1,43 @@
 #
 # -----------------------------------------------------------------------------
 #
-# CONVEX HULL ANALYSIS SCRIPT (WITH PERMUTATION SUPPORT)
+# CONVEX HULL ANALYSIS SCRIPT (CONFIG-DRIVEN)
 #
 # -----------------------------------------------------------------------------
 #
 # Description:
 #   This script performs a comprehensive analysis of a set of points in relation
-#   to their convex hull. This version includes a final correction to the
-#   facet sorting logic to ensure it is purely numerical. It also introduces
-#   a `USE_PERMUTATIONS` flag to analyze the hull of all permutations of the
-#   input points.
+#   to their convex hull. All parameters are loaded from an external
+#   `config.toml` file, and point sets are loaded from a specified JSON file.
 #
 # Workflow:
-#   0.  Point Generation: If `USE_PERMUTATIONS` is True, generate all unique
-#       permutations of the initial points.
-#   1.  Analysis of Hull Defining Points: Iterates through the initial points,
-#       reporting if each is NECESSARY (a vertex) or REDUNDANT (internal)
-#       relative to the (potentially permuted) hull. Redundant points are
-#       immediately expressed as a convex combination of the necessary vertices.
-#   2.  External Point Identification: Finds points from an external JSON file
+#   0.  Configuration Loading: Reads `config.toml` to get all settings.
+#   1.  Point Generation: Loads the specified point set from a JSON file. If
+#       `use_permutations` is True, it generates all unique permutations.
+#   2.  Analysis of Hull Defining Points: Classifies every point as either
+#       NECESSARY (a vertex) or REDUNDANT (internal).
+#   3.  External Point Identification: Finds points from an external JSON file
 #       that lie outside the convex hull.
-#   3.  Furthest Point Reporting: Ranks and reports the top N furthest
+#   4.  Furthest Point Reporting: Ranks and reports the top N furthest
 #       external points.
-#   4.  Exposed Facet Characterization: Using only the necessary vertices, it
-#       identifies all exposed facets of the hull, sorts them into a canonical
-#       order, and prints their descriptions.
+#   5.  Exposed Facet Characterization: Describes all exposed facets of the hull.
 #
 # -----------------------------------------------------------------------------
 
 import numpy as np
 import json
 import os
+import tomli
 from scipy.spatial import ConvexHull, QhullError
 from scipy.optimize import linprog
 from collections import defaultdict
 import itertools
 
-# --- CONFIGURATION ---
-# Set to True to use all permutations of HULL_DEFINING_POINTS
-# Set to False to use only the points as written (ordered case)
-USE_PERMUTATIONS = True
+from lib import file_utils
 
-HULL_DEFINING_POINTS = [
-    (1, 1, 1, 1, 1),
-    (1, 1, 1, 1, -1),
-    (1, 1, 1, -1, -1),
-    (1, 1, -1, -1, -1),
-    (-0.2, -0.2, -0.2, -0.2, -0.2),
-    (1,-0.5,-0.5,-0.5, -0.5),
-    (0,0,0,0,-1),
-    (1,0,0,-1,-1),
-    (1,-1/3,-1/3,-1/3,-1),
-    (0.25, 0.25, 0, -0.75, -0.75),
-    (0.25, 0.25, 0.2, -0.75, -0.75)
-]
-POINTS_TO_CHECK_JSON_PATH = 'sub_sniep/data/sub_sniep_n6_dims11_11_11_11.json'
-NUM_FURTHEST_POINTS_TO_DISPLAY = 5
-TOLERANCE = 1e-5
+# --- All configuration is now loaded from config.toml ---
 
-
-def classify_hull_points(points_list):
+def classify_hull_points(points_list, tolerance):
     """
     Silently checks each point in a list to see if it's a necessary vertex.
     """
@@ -85,47 +62,11 @@ def classify_hull_points(points_list):
             continue
         
         signed_distances = np.dot(hull_of_others.equations[:, :-1], current_point_to_check) + hull_of_others.equations[:, -1]
-        if np.all(signed_distances <= TOLERANCE):
+        if np.all(signed_distances <= tolerance):
             redundant_points_info[current_point_tuple] = None
         else:
             necessary_points.append(current_point_tuple)
     return necessary_points, redundant_points_info
-
-def find_furthest_external_points(json_file_path, hull_points_list, num_furthest):
-    """
-    Identifies and ranks points from a JSON file that are outside a given convex hull.
-    """
-    print(f"Searching for the {num_furthest} furthest points outside the hull...")
-    print(f"Using input file: {json_file_path}")
-    try:
-        hull = ConvexHull(np.array(hull_points_list), qhull_options='QJ')
-    except (QhullError, ValueError) as e:
-        print(f"   Error: Could not construct the convex hull. {e}")
-        return []
-
-    external_points = []
-    try:
-        with open(json_file_path, 'r') as f: data_from_file = json.load(f)
-    except FileNotFoundError:
-        print(f"   Error: Input JSON file not found at '{json_file_path}'"); return []
-    except json.JSONDecodeError:
-        print(f"   Error: Could not decode JSON from '{json_file_path}'"); return []
-
-    if not isinstance(data_from_file, list):
-        print("   Warning: JSON content is not a list."); return []
-
-    for entry in data_from_file:
-        if isinstance(entry, dict) and 'eigenvalues' in entry and len(entry['eigenvalues']) == hull.ndim:
-            point_np = np.array(entry['eigenvalues'])
-            signed_distances = np.dot(hull.equations[:, :-1], point_np) + hull.equations[:, -1]
-            if np.any(signed_distances > TOLERANCE):
-                external_points.append((np.max(signed_distances), entry))
-
-    if not external_points:
-        print("   No points from the JSON file were found outside the convex hull."); return []
-
-    external_points.sort(key=lambda x: x[0], reverse=True)
-    return external_points[:num_furthest]
 
 def characterize_exposed_facets(hull_points_list, point_labels):
     """
@@ -136,7 +77,6 @@ def characterize_exposed_facets(hull_points_list, point_labels):
     except (QhullError, ValueError) as e:
         print(f"   Error: Could not compute hull to find facets. {e}"); return []
         
-    # 1. Gather details for all unique facets first
     facet_details, processed_keys = [], set()
     for i in range(len(hull.simplices)):
         canonical_key = tuple(sorted(hull.simplices[i]))
@@ -157,10 +97,8 @@ def characterize_exposed_facets(hull_points_list, point_labels):
             'vertices': vertex_labels_sorted
         })
 
-    # 2. Sort the facets based on their numerical vertex list
     facet_details.sort(key=lambda item: item['numerical_sort_key'])
 
-    # 3. Now, build the final formatted description strings in the sorted order
     final_descriptions = []
     decimals = 5
     for i, detail in enumerate(facet_details):
@@ -177,7 +115,7 @@ def characterize_exposed_facets(hull_points_list, point_labels):
         
     return final_descriptions
 
-def express_as_convex_combination(target_point, basis_points, basis_labels):
+def express_as_convex_combination(target_point, basis_points, basis_labels, tolerance):
     """
     Finds and displays the convex combination coefficients for a target point.
     """
@@ -190,7 +128,7 @@ def express_as_convex_combination(target_point, basis_points, basis_labels):
         print("     └─ Convex Combination Found:")
         reconstructed = np.zeros_like(target_np, dtype=float)
         for i, l_val in enumerate(res.x):
-            if l_val > TOLERANCE:
+            if l_val > tolerance:
                 point = basis_points[i]
                 label = basis_labels[point]
                 print(f"         {l_val:.6f} * {label} {point}")
@@ -203,71 +141,156 @@ def express_as_convex_combination(target_point, basis_points, basis_labels):
         print(f"     └─ Failed to find a convex combination. Solver status: {res.message}\n")
 
 
+def find_furthest_external_points(input_json_path, hull_points_list, num_furthest, tolerance, output_json_path):
+    """
+    Identifies, saves, and ranks points from a JSON file that are outside a given convex hull.
+    """
+    print(f"Searching for the {num_furthest} furthest points outside the hull...")
+    print(f"Using input file: {input_json_path}")
+    try:
+        hull = ConvexHull(np.array(hull_points_list), qhull_options='QJ')
+    except (QhullError, ValueError) as e:
+        print(f"   Error: Could not construct the convex hull. {e}")
+        return []
+
+    external_points_with_dist = []
+    try:
+        with open(input_json_path, 'r') as f: data_from_file = json.load(f)
+    except FileNotFoundError:
+        print(f"   Error: Input JSON file not found at '{input_json_path}'"); return []
+    except json.JSONDecodeError:
+        print(f"   Error: Could not decode JSON from '{input_json_path}'"); return []
+
+    if not isinstance(data_from_file, list):
+        print("   Warning: JSON content is not a list."); return []
+
+    for entry in data_from_file:
+        if isinstance(entry, dict) and 'eigenvalues' in entry and len(entry['eigenvalues']) == hull.ndim:
+            point_np = np.array(entry['eigenvalues'])
+            signed_distances = np.dot(hull.equations[:, :-1], point_np) + hull.equations[:, -1]
+            if np.any(signed_distances > tolerance):
+                external_points_with_dist.append((np.max(signed_distances), entry))
+
+    if not external_points_with_dist:
+        print("   No points from the JSON file were found outside the convex hull."); return []
+
+    points_to_save = [entry for dist, entry in external_points_with_dist]
+    output_dir = os.path.dirname(output_json_path)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+    
+    try:
+        with open(output_json_path, 'w') as f:
+            json.dump(points_to_save, f, indent=4)
+        print(f"   Successfully saved {len(points_to_save)} external points to '{output_json_path}'")
+    except IOError as e:
+        print(f"   Warning: Could not save external points to '{output_json_path}'. Error: {e}")
+    
+    # Sort and return only the top N furthest points for console display
+    external_points_with_dist.sort(key=lambda x: x[0], reverse=True)
+    return external_points_with_dist[:num_furthest]
+
 if __name__ == '__main__':
     print("=====================================================")
     print("      Convex Hull Analysis Starting")
     print("=====================================================")
 
-    # --- STEP 0: Point Generation (Ordered vs. Unordered) ---
-    if USE_PERMUTATIONS:
-        print("Mode: Unordered (using all unique permutations of input points)")
+    # --- STEP 0: Load Configuration ---
+    try:
+        # NOTE: The library was changed to 'tomli' for consistency with Python's recommendations
+        with open("config.toml", "rb") as f:
+            config = tomli.load(f)
+        
+        extreme_points_config = config['extreme_points_data']
+        use_permutations = extreme_points_config['use_permutations']
+        points_to_check_path = extreme_points_config['points_to_check_path']
+        
+        # This logic for a dynamic path was present in your attached script
+        if not points_to_check_path:
+            print("Defaulting to config for points to check path")
+            points_to_check_path = file_utils.build_file_name(config)
+
+        num_furthest_points = extreme_points_config['num_furthest_points']
+        tol = extreme_points_config['tolerance']
+        
+        hull_points_path = extreme_points_config['hull_points_path']
+        hull_points_set_name = extreme_points_config['hull_points_set_name']
+        if not hull_points_set_name:
+            print("Defaulting to config for hull points set name")
+            hull_points_set_name = f"{config['global_data']['matrix_type']}_{config['global_data']['n']}"
+        external_points_output_path = extreme_points_config['external_points_output_path'] # Load new config value
+        
+    except (FileNotFoundError, KeyError) as e:
+        print(f"FATAL: Could not load configuration from config.toml. Error: {e}")
+        quit()
+    except NameError as e:
+        print(f"FATAL: A configuration value is likely missing or incorrect. Error: {e}")
+        quit()
+
+
+    # --- STEP 1: Point Generation (Ordered vs. Unordered) ---
+    try:
+        with open(hull_points_path, 'r') as f:
+            all_point_sets = json.load(f)
+        hull_defining_points = [tuple(p) for p in all_point_sets[hull_points_set_name]]
+    except (FileNotFoundError, KeyError, TypeError) as e:
+        print(f"FATAL: Could not load point set '{hull_points_set_name}' from '{hull_points_path}'. Error: {e}")
+        quit()
+        
+    if use_permutations:
+        print(f"Mode: Unordered (using permutations of point set '{hull_points_set_name}')")
         permuted_points_set = set()
-        for point in HULL_DEFINING_POINTS:
-            # Generate all unique permutations for the current point
+        for point in hull_defining_points:
             perms = set(itertools.permutations(point))
             permuted_points_set.update(perms)
         analysis_points = list(permuted_points_set)
-        print(f"Generated {len(analysis_points)} unique points from {len(HULL_DEFINING_POINTS)} base points.")
+        print(f"Generated {len(analysis_points)} unique points from {len(hull_defining_points)} base points.")
     else:
-        print("Mode: Ordered (using input points as is)")
-        analysis_points = HULL_DEFINING_POINTS
+        print(f"Mode: Ordered (using point set '{hull_points_set_name}' as is)")
+        analysis_points = hull_defining_points
         print(f"Using {len(analysis_points)} specified points.")
 
-
-    # --- STEP 1: Analysis of Hull Defining Points ---
-    # Determine the vertices (necessary points) from the full analysis set
-    necessary_points, _ = classify_hull_points(analysis_points)
+    # --- STEP 2: Analysis of Hull Defining Points ---
+    necessary_points, _ = classify_hull_points(analysis_points, tol)
     
-    # Create a set of necessary points for efficient lookup
-    necessary_points_set = set(necessary_points)
-
-    if not necessary_points or len(necessary_points) < len(HULL_DEFINING_POINTS[0]) + 1:
+    if not necessary_points or len(necessary_points) < len(analysis_points[0]) + 1:
         print("\nAnalysis HALTED: Not enough necessary points found to define a valid hull.")
         quit()
 
-    print("\n--- [Step 1: Analysis of Hull Defining Points] ---")
-    # Assign labels only to the true vertices of the final hull
+    print("\n--- [Step 2: Analysis of Hull Defining Points] ---")
+
+    necessary_points.sort()
     necessary_point_labels = {pt: f"P{i+1}" for i, pt in enumerate(necessary_points)}
+    necessary_points_set = set(necessary_points)
+
+    print(f"Found {len(necessary_points)} necessary points (vertices of the final hull):")
+    for point in necessary_points:
+        label = necessary_point_labels.get(point)
+        print(f"-> {label} {point}")
+
+    all_points_set = set(map(tuple, analysis_points))
+    redundant_points = sorted(list(all_points_set - necessary_points_set))
     
-    print("Necessary points (vertices of the final hull):")
-    # We check the ORIGINAL points against the derived necessary set
-    for point in HULL_DEFINING_POINTS:
-        if point in necessary_points_set:
-            label = necessary_point_labels.get(point, "??")
-            print(f"-> Point {label} {point}")
-            
-    print(f"\nTotal necessary vertices found: {len(necessary_points)}\n")
-
-    print ("Redundant points (relative to the final hull):")
-    # Identify which of the ORIGINAL points are redundant
-    for point in HULL_DEFINING_POINTS:
-        if point not in necessary_points_set:
+    print(f"\nFound {len(redundant_points)} redundant points (internal to the final hull):")
+    if not redundant_points:
+        print("   None")
+    else:
+        for point in redundant_points:
             print(f"-> Point {point}")
-            express_as_convex_combination(point, necessary_points, necessary_point_labels)
+            express_as_convex_combination(point, necessary_points, necessary_point_labels, tol)
 
-
-    # --- STEP 2: Finding External Points ---
-    print("\n--- [Step 2: Finding External Points from JSON] ---")
+    # --- STEP 3: Finding External Points ---
+    print("\n--- [Step 3: Finding External Points from JSON] ---")
     furthest_points = find_furthest_external_points(
-        POINTS_TO_CHECK_JSON_PATH, necessary_points, NUM_FURTHEST_POINTS_TO_DISPLAY
+        points_to_check_path, necessary_points, num_furthest_points, tol, external_points_output_path
     )
     if furthest_points:
         print(f"\nTop {len(furthest_points)} furthest points found:")
         for i, (dist, data) in enumerate(furthest_points):
             print(f"  {i+1}. Distance = {dist:.6f}, Point Eigenvalues = {data['eigenvalues']}")
     
-    # --- STEP 3: Characterizing the Exposed Hull Facets ---
-    print("\n--- [Step 3: Characterizing the Exposed Hull Facets] ---")
+    # --- STEP 4: Characterizing the Exposed Hull Facets ---
+    print("\n--- [Step 4: Characterizing the Exposed Hull Facets] ---")
     facet_descriptions = characterize_exposed_facets(necessary_points, necessary_point_labels)
     if facet_descriptions:
         print(f"\nFound {len(facet_descriptions)} unique facets:")
