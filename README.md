@@ -29,18 +29,7 @@ The toolkit consists of two main scripts and a central configuration file that d
 
 ## 🔧 Setup and Installation
 
-**1. Dependencies:**
-
-While a `requirements.txt` file is not provided, the following libraries are required based on the source code. You can install them using pip:
-
-```bash
-pip install numpy scipy tomli numba matplotlib
-```
-*(Note: A plotting library like `matplotlib` or `plotly` is used by `plot_utils.py`)*
-
-**2. Configuration:**
-
-Before running any scripts, you must configure your experiment in the `config.toml` file. Key sections include:
+All setup is done in the `config.toml` file. Key sections include:
 
 * **`[global_data]`**:
     * `n`: The size of the matrix (e.g., 4, 5, 6).
@@ -99,9 +88,12 @@ b.  **Execute the script**:
     python plot_data.py
     ```
 
+All plotting is done using the plotly library, this gives html files for ease of manipulating the high dimensional data.
+
 ---
 
 ## 💡 Technical Implementation Details
 
-* **Performance**: To achieve high performance, the computationally expensive functions for the principal minors ($S_k$), their Jacobians, and their Hessians have been symbolically pre-calculated and generated as Python code. These are then Just-In-Time (JIT) compiled using `numba` for near-native C speed. This avoids the massive overhead of symbolic computation during the optimization loops.
+* **Performance**: To achieve high performance, the computationally expensive functions for the principal minors ($S_k$), their Jacobians, and their Hessians have been symbolically pre-calculated and generated as Python code. These are then Just-In-Time (JIT) compiled using `numba` for near-native C speed. This avoids the massive overhead of symbolic computation during the optimization loops. Optimization is first attempted using `SLSQP`, then if that fails it moves to the slower `trust-constr` method. 
 * **Modularity**: The logic is separated into a `lib/` directory, with distinct tasks for file I/O, optimization, eigenvalue computation, and plotting, making the codebase clean and maintainable.
+* **Logging**: With each run a comprehensive log file is built. This gives exact details as to potential numerical or other problems that may arise in higher dimension runs.
