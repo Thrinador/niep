@@ -1,42 +1,107 @@
-# Experimental NIEP tools 
+# NIEP Exploration Toolkit
 
-## Overview of the problems
+## 📝 Overview
 
-Collection of tools and software related to solving the nonnegative inverse eigenvalue problem (NIEP) and two major sub problems the symmetric nonnegative inverse eigenvalue problem (SNIEP) and stochastic symmetric nonnegative inverse eigenvalue problem (SSNIEP). 
+This repository provides a collection of research tools for the numerical exploration of the **Nonnegative Inverse Eigenvalue Problem (NIEP)** and its primary sub-problems:
+* **NIEP**: The general Nonnegative Inverse Eigenvalue Problem for stochastic matrices.
+* **SNIEP**: The Symmetric Nonnegative Inverse Eigenvalue Problem, assuming stochastic matrices.
+* **sub-SNIEP**: The Symmetric NIEP for sub-stochastic matrices, scaled such that the Perron root is 1.
 
-It is well known that solving the stochastic NIEP is equivalent to solving the NIEP, so all optimizers will use this as the default to save n variables. It is also assumed the the SNIEP is stochastic by default. For the general SNIEP we will use the notation of sub_sniep since to get the optimizer to handle it we use sub-stochastic matrices instead. This gives us the current supported options of 
-- niep: Stochastic nonnegative matrices
-- sniep: Stochastic symmetric nonnegative matrices
-- sub_sniep: Sub-stochastic symmetric nonnegative matrices, scaled so that the perron root is 1. 
+The core of this toolkit is an optimization-based approach to numerically map the boundaries of the realizable region of coefficients for the characteristic polynomial. By identifying matrices that form this boundary, the toolkit calculates their corresponding eigenvalues (spectra), thereby constructing the boundary of the realizable spectra space.
 
-## Examples 
+---
 
+## ⚙️ Core Components
 
+The toolkit consists of two main scripts and a central configuration file that drives all operations.
 
-# Scripts
+1.  **`optimizer_main.py`**: This is the primary script for generating data. It systematically finds the boundaries of the coefficient space ($E_k$, the sum of k-by-k principal minors) by performing a series of constrained optimizations. Once boundary points are found, it computes their eigenvalues, saves the resulting matrix, coefficients, and spectra to a JSON file, and generates plots of the solution space.
 
-## Optimizer
+2.  **`extreme_points.py`**: This script is a utility for analyzing the geometry of the solution space. It takes a set of known or guessed "extreme points" and a larger dataset (e.g., from the optimizer). It then performs a convex hull analysis to:
+    * Identify which of the initial points are redundant (can be formed by a convex combination of others).
+    * Find data points from the larger set that lie outside the current convex hull.
+    * Report the equations of the exposed facets of the hull.
+    This is invaluable for iteratively building a complete description of the solution space boundary.
 
-The optimizer attempts to solve the boundary of the coefficients of the characteristic polynomial. It does this by first using the trace as a constraint for finding the min and max of the sum of the 2x2 principal minors (E_2). Then it build a mesh where the trace and E_2 are constraints and it solves for min/max of E_3. It continues this process until all specified E_k's are solved for. This process gets a numerical boundary of the coefficient space, the input points for those are then the matrices that realize them. We can use those matrices to get their spectra, which forms the boundary of the spectra space. 
+3.  **`config.toml`**: This file is the central control panel for the entire toolkit. All parameters—from matrix size and type to optimizer tolerances and file paths—are defined here, allowing for repeatable and well-defined experiments without altering the source code.
 
-The file config.toml handles all the specifications on which matrix type to work with, the size of that matrix, tolerances to solve for, and more. 
+---
 
-Once the data is generated, it is all saved in a JSON file in its appropriate matrix type folder. The format is as an array of the following block
-'''
-{
-    "type": "string for min or max",
-    "coefficients": [double array],
-    "matrix": [double array],
-    "eigenvalues": [double array]
-},
-'''
+## 🔧 Setup and Installation
 
-Note that the matrix is not saved in its entirity, but instead only the free variables are saved. For example in the sniep case only the upper triangle is saved. 
+**1. Dependencies:**
 
-After the JSON is saved the last portion of the optimizer creates plots. These plots will be based on the size of the arrays being worked with, but they will be scatter plots up to 4d (where the 4th dimension is color). The plots will be saved in the same folder of matrix type under the plots folder.
+While a `requirements.txt` file is not provided, the following libraries are required based on the source code. You can install them using pip:
 
-## Extreme points
+```bash
+pip install numpy scipy tomli numba matplotlib
+```
+*(Note: A plotting library like `matplotlib` or `plotly` is used by `plot_utils.py`)*
 
-The other main script is the extreme points finder. For this script you give a collection of extreme points and a data set. It will then say if any of the extreme points can be formed as a convex combination of the others (so that they can be removed). Next it will make a json file of all the points from the provided data that are outside the convex hull. Next, it will then print a configurable number of furthest points from that convex hull. Finally, it will print the exposed faces of the current points.
+**2. Configuration:**
 
-This script is useful for trying to build the set of extreme points You can start with your guessed points, then add on till you cover all the data. 
+Before running any scripts, you must configure your experiment in the `config.toml` file. Key sections include:
+
+* **`[global_data]`**:
+    * `n`: The size of the matrix (e.g., 4, 5, 6).
+    * `matrix_type`: The problem to solve (`niep`, `sniep`, `sub_sniep`).
+    * `funcs_to_optimize`: A list of the coefficients ($E_k$) to optimize.
+    * `points_dim`: The number of sample points for each optimization axis.
+
+* **`[optimize_data]`**:
+    * Tolerances (`tol_nlc`, `tol_slsqp`) and iteration limits for the SciPy optimizers.
+
+* **`[extreme_points_data]`**:
+    * `hull_points_path`: Path to the JSON file containing known extreme points.
+    * `points_to_check_path`: Path to the JSON data file you want to check against the hull.
+    * `num_furthest_points`: How many points outside the hull to report.
+
+---
+
+## 🚀 Workflow and Usage
+
+### 1. Running the Optimizer
+
+The main experimental workflow is managed by `optimizer_main.py`.
+
+a.  **Configure `config.toml`** with your desired matrix size, type, and optimization parameters.
+b.  **Execute the script** from your terminal:
+    ```bash
+    python optimizer_main.py
+    ```
+c.  **Output**: The script will:
+    * Log detailed progress to the console and a time-stamped log file in the `logs/` directory.
+    * Save the results in a structured JSON file within a directory corresponding to the matrix type (e.g., `sniep/data/`). Each entry in the JSON contains the resulting coefficients, the matrix variables, and the final eigenvalues.
+    * If `plot_with_optimize` is `true`, it will generate and save scatter plots of the solution space to a corresponding `plots/` directory.
+
+### 2. Analyzing Extreme Points
+
+Once you have generated data, you can use `extreme_points.py` to analyze its geometric properties.
+
+a.  **Configure `config.toml`**, specifically the `[extreme_points_data]` section, to point to your set of known vertices and the dataset you want to analyze.
+b.  **Execute the script**:
+    ```bash
+    python extreme_points.py
+    ```
+c.  **Output**: The script prints an analysis to the console, including:
+    * A list of necessary vs. redundant points.
+    * The top points from your dataset that lie furthest outside the current hull.
+    * The equations defining the exposed facets of the hull.
+    * It also saves a new file, `extreme_points/points_outside_hull.json`, containing all points found outside the current hull.
+
+### 3. Plotting Existing Data
+
+If you have already generated a JSON data file and want to re-run the plotting stage, you can use the `plot_data.py` script.
+
+a.  **Configure `config.toml`**, setting the `[plot_data]` `data_location` to the path of your JSON file.
+b.  **Execute the script**:
+    ```bash
+    python plot_data.py
+    ```
+
+---
+
+## 💡 Technical Implementation Details
+
+* **Performance**: To achieve high performance, the computationally expensive functions for the principal minors ($S_k$), their Jacobians, and their Hessians have been symbolically pre-calculated and generated as Python code. These are then Just-In-Time (JIT) compiled using `numba` for near-native C speed. This avoids the massive overhead of symbolic computation during the optimization loops.
+* **Modularity**: The logic is separated into a `lib/` directory, with distinct tasks for file I/O, optimization, eigenvalue computation, and plotting, making the codebase clean and maintainable.
